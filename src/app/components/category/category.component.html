@@ -1,0 +1,63 @@
+<div class="category-page">
+  <div class="category-header" [style.background]="getCategoryGradient()">
+    <div class="container">
+      <h1>{{ categoryName }}</h1>
+      <p>Découvrez notre sélection exclusive</p>
+      <div class="product-count">{{ products.length }} produits disponibles</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div *ngIf="products.length === 0" class="empty-category">
+      <div class="empty-icon">😕</div>
+      <h3>Aucun produit dans cette catégorie</h3>
+      <p>Les produits seront bientôt disponibles</p>
+      <button routerLink="/products" class="btn-primary">Voir tous les produits</button>
+    </div>
+
+    <div *ngIf="products.length > 0" class="category-content">
+      <div class="products-grid">
+        <div *ngFor="let product of products" class="product-card">
+          <div class="product-image">
+            <img [src]="product.images[0]" [alt]="product.name">
+            <div class="product-overlay">
+              <button class="quick-view">👁️</button>
+              <button class="wishlist">❤️</button>
+            </div>
+          </div>
+
+          <div class="product-info">
+            <span class="product-category">{{ product.category }}</span>
+            <h3>{{ product.name }}</h3>
+            <p class="product-desc">{{ product.description | slice:0:80 }}...</p>
+
+            <div class="product-price">
+              <span *ngIf="product.discountPrice" class="old-price">
+                {{ product.price.toFixed(2) }} DT
+              </span>
+              <span class="current-price">
+                {{ (product.discountPrice || product.price).toFixed(2) }} DT
+              </span>
+              <span *ngIf="product.discountPrice" class="discount-badge">
+                -{{ getDiscountPercentage(product) }}%
+              </span>
+            </div>
+
+            <div class="product-meta">
+              <div class="rating">
+                ⭐ {{ product.rating }} ({{ product.reviews }})
+              </div>
+              <div class="sizes">
+                {{ product.sizes.join(', ') }}
+              </div>
+            </div>
+
+            <button (click)="addToCart(product)" class="add-to-cart">
+              🛒 Ajouter
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

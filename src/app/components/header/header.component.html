@@ -1,0 +1,172 @@
+<header class="header">
+  <div class="header-top">
+    <div class="container">
+      <div class="top-content">
+        <span>🎁 Livraison gratuite à partir de 99 DT</span>
+        <div class="top-links">
+          <!-- Suivi de commande - visible seulement si connecté -->
+          <a *ngIf="isLoggedIn()" routerLink="/order-confirmation" routerLinkActive="active">
+            Suivi de commande
+          </a>
+          <a href="#">Aide</a>
+          <span>🇹🇳 Tunisie</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="header-main">
+    <div class="container">
+      <div class="header-content">
+        <!-- Logo -->
+        <div class="logo" routerLink="/">
+          <span class="logo-icon">👕</span>
+          <div class="logo-text">
+            <span class="logo-primary">Fashion</span>
+            <span class="logo-secondary">Store</span>
+          </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="nav" [class.active]="isMenuOpen">
+          <ul class="nav-list">
+            <li class="nav-item">
+              <a routerLink="/" class="nav-link" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
+                Accueil
+              </a>
+            </li>
+            <li class="nav-item dropdown">
+              <a class="nav-link">
+                Catégories ▼
+              </a>
+              <div class="dropdown-menu">
+                <a routerLink="/category/homme" class="dropdown-item">Homme</a>
+                <a routerLink="/category/femme" class="dropdown-item">Femme</a>
+                <a routerLink="/category/enfant" class="dropdown-item">Enfant</a>
+                <a routerLink="/category/accessoire" class="dropdown-item">Accessoires</a>
+                <a routerLink="/products" class="dropdown-item">Tous les produits</a>
+              </div>
+            </li>
+            <li class="nav-item">
+              <a routerLink="/new" class="nav-link" routerLinkActive="active">
+                Nouveautés
+              </a>
+            </li>
+            <li class="nav-item">
+              <a routerLink="/sale" class="nav-link" routerLinkActive="active">
+                Promotions
+              </a>
+            </li>
+            <li class="nav-item">
+              <a routerLink="/about" class="nav-link" routerLinkActive="active">
+                À propos
+              </a>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Search and Cart -->
+        <div class="header-actions">
+          <!-- Search -->
+          <div class="search-container">
+            <input
+              type="text"
+              [(ngModel)]="searchQuery"
+              (keyup.enter)="search()"
+              placeholder="Rechercher un produit..."
+              class="search-input"
+            >
+            <button class="search-btn" (click)="search()">
+              🔍
+            </button>
+          </div>
+
+          <!-- User Menu (Conditionnel selon authentification) -->
+          <div class="user-menu">
+            <!-- Non connecté -->
+            <div *ngIf="!isLoggedIn()" class="auth-links">
+              <a routerLink="/login" class="icon-btn">
+                👤
+                <span class="auth-text">Connexion</span>
+              </a>
+              <a routerLink="/register" class="register-link">
+                S'inscrire
+              </a>
+            </div>
+
+            <!-- Connecté -->
+            <div *ngIf="isLoggedIn()" class="logged-in-user">
+              <div class="user-dropdown">
+                <button class="user-profile-btn" (click)="toggleUserMenu()">
+                  <span class="user-avatar">
+                    {{ currentUser?.firstName?.charAt(0) || '👤' }}
+                  </span>
+                  <span class="user-name">
+                    {{ currentUser?.firstName || currentUser?.email }}
+                  </span>
+                  <span class="dropdown-arrow">▼</span>
+                </button>
+
+                <div class="user-dropdown-menu" [class.show]="isUserMenuOpen">
+                  <a routerLink="/account" class="dropdown-item" (click)="closeUserMenu()">
+                    <span class="dropdown-icon">👤</span>
+                    Mon compte
+                  </a>
+                  <a routerLink="/orders" class="dropdown-item" (click)="closeUserMenu()">
+                    <span class="dropdown-icon">📦</span>
+                    Mes commandes
+                  </a>
+                  <a routerLink="/wishlist" class="dropdown-item" (click)="closeUserMenu()">
+                    <span class="dropdown-icon">❤️</span>
+                    Ma liste de souhaits
+                  </a>
+
+                 <!-- Admin seulement -->
+<div *ngIf="isAdmin()" class="admin-section">
+  <div class="dropdown-divider"></div>
+  <a routerLink="/admin" class="dropdown-item admin-link" (click)="closeUserMenu()">
+    <span class="dropdown-icon">⚙️</span>
+    Dashboard Admin
+  </a>
+</div>
+                  <div class="dropdown-divider"></div>
+                  <a class="dropdown-item logout-link" (click)="logout(); closeUserMenu()">
+                    <span class="dropdown-icon">🚪</span>
+                    Déconnexion
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Wishlist -->
+          <a routerLink="/wishlist" class="icon-btn wishlist-btn">
+            ❤️
+            <span *ngIf="wishlistCount > 0" class="badge">{{ wishlistCount }}</span>
+          </a>
+
+          <!-- Cart -->
+          <button class="cart-btn" (click)="goToCart()">
+            <div class="cart-icon">
+              🛒
+              <span *ngIf="cartItemsCount > 0" class="cart-count">
+                {{ cartItemsCount }}
+              </span>
+            </div>
+            <span class="cart-text">Panier</span>
+            <span *ngIf="cartTotal > 0" class="cart-total">
+              {{ cartTotal.toFixed(2) }} DT
+            </span>
+          </button>
+
+          <!-- Mobile menu button -->
+          <button class="menu-btn" (click)="toggleMenu()">
+            <span class="menu-icon"></span>
+            <span class="menu-icon"></span>
+            <span class="menu-icon"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>

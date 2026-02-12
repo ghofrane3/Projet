@@ -1,0 +1,154 @@
+<div class="auth-page">
+  <div class="auth-container">
+    <div class="auth-left">
+      <div class="brand-logo">
+        <i class="fas fa-tshirt"></i>
+        <span>FashionStore</span>
+      </div>
+      <h1>{{ isLoginMode ? 'Connexion' : 'Créer un compte' }}</h1>
+      <p>{{ isLoginMode ? 'Connectez-vous à votre compte' : 'Rejoignez notre communauté de mode' }}</p>
+
+      <div class="auth-benefits">
+        <div class="benefit">
+          <i class="fas fa-shopping-bag"></i>
+          <span>Suivez vos commandes</span>
+        </div>
+        <div class="benefit">
+          <i class="fas fa-heart"></i>
+          <span>Gérez vos favoris</span>
+        </div>
+        <div class="benefit">
+          <i class="fas fa-tags"></i>
+          <span>Offres exclusives</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-right">
+      <form (ngSubmit)="onSubmit()" #authForm="ngForm">
+        <div *ngIf="!isLoginMode" class="form-row">
+          <div class="form-group">
+            <label for="firstName">
+              <i class="fas fa-user"></i>
+              Prénom
+            </label>
+            <input
+              type="text"
+              id="firstName"
+              [(ngModel)]="formData.firstName"
+              name="firstName"
+              required
+              placeholder="Votre prénom">
+          </div>
+
+          <div class="form-group">
+            <label for="lastName">
+              <i class="fas fa-user"></i>
+              Nom
+            </label>
+            <input
+              type="text"
+              id="lastName"
+              [(ngModel)]="formData.lastName"
+              name="lastName"
+              required
+              placeholder="Votre nom">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="email">
+            <i class="fas fa-envelope"></i>
+            Email
+          </label>
+          <input
+            type="email"
+            id="email"
+            [(ngModel)]="formData.email"
+            name="email"
+            required
+            placeholder="votre@email.com">
+        </div>
+
+        <div *ngIf="!isLoginMode" class="form-group">
+          <label for="phone">
+            <i class="fas fa-phone"></i>
+            Téléphone
+          </label>
+          <input
+            type="tel"
+            id="phone"
+            [(ngModel)]="formData.phone"
+            name="phone"
+            required
+            placeholder="+216 XX XXX XXX">
+        </div>
+
+        <div class="form-group">
+          <label for="password">
+            <i class="fas fa-lock"></i>
+            Mot de passe
+          </label>
+          <input
+            type="password"
+            id="password"
+            [(ngModel)]="formData.password"
+            name="password"
+            required
+            placeholder="••••••••">
+        </div>
+
+        <div *ngIf="!isLoginMode" class="form-group">
+          <label for="confirmPassword">
+            <i class="fas fa-lock"></i>
+            Confirmer le mot de passe
+          </label>
+          <input
+            type="password"
+            id="confirmPassword"
+            [(ngModel)]="formData.confirmPassword"
+            name="confirmPassword"
+            required
+            placeholder="••••••••">
+        </div>
+
+        <div *ngIf="errorMessage" class="error-message">
+          <i class="fas fa-exclamation-circle"></i>
+          {{ errorMessage }}
+        </div>
+
+        <button type="submit" class="auth-btn" [disabled]="isLoading">
+          <span *ngIf="!isLoading">
+            {{ isLoginMode ? 'Se connecter' : 'Créer un compte' }}
+          </span>
+          <span *ngIf="isLoading" class="loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            Chargement...
+          </span>
+        </button>
+
+        <div class="auth-divider">
+          <span>ou</span>
+        </div>
+
+        <button type="button" class="demo-btn" (click)="loginWithDemo()" *ngIf="isLoginMode">
+          <i class="fas fa-user-shield"></i>
+          Connexion démo (Admin)
+        </button>
+
+        <div class="auth-switch">
+          <p>
+            {{ isLoginMode ? 'Nouveau chez FashionStore ?' : 'Déjà un compte ?' }}
+            <a href="javascript:void(0)" (click)="toggleMode()">
+              {{ isLoginMode ? 'Créer un compte' : 'Se connecter' }}
+            </a>
+          </p>
+        </div>
+
+        <div class="auth-terms">
+          <p>En continuant, vous acceptez nos <a href="#">Conditions d'utilisation</a> et notre <a href="#">Politique de confidentialité</a>.</p>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

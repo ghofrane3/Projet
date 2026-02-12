@@ -1,0 +1,81 @@
+<div class="product-list-page">
+  <div class="container">
+    <!-- Header avec filtres -->
+    <div class="page-header">
+      <h1>Boutique</h1>
+      <div class="filters">
+        <div class="category-filter">
+          <button
+            *ngFor="let cat of categories"
+            [class.active]="selectedCategory === cat.name.toLowerCase()"
+            (click)="filterByCategory(cat.name.toLowerCase())"
+            class="category-btn"
+          >
+            {{ cat.name }}
+          </button>
+        </div>
+
+        <div class="sort-filter">
+          <select (change)="sortProducts($event)" class="sort-select">
+            <option value="default">Trier par</option>
+            <option value="price-low">Prix croissant</option>
+            <option value="price-high">Prix décroissant</option>
+            <option value="rating">Meilleures notes</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grille de produits -->
+    <div class="product-grid">
+      <div *ngFor="let product of products" class="product-card">
+        <!-- Badge -->
+        <div class="product-badges">
+          <span *ngIf="product.discountPrice" class="badge discount">
+            -{{ getDiscountPercentage(product) }}%
+          </span>
+          <span *ngIf="product.tags.includes('nouveau')" class="badge new">
+            Nouveau
+          </span>
+        </div>
+
+        <!-- Image -->
+        <div class="product-image">
+          <img [src]="product.images[0]" [alt]="product.name">
+          <div class="product-overlay">
+            <button class="quick-view">👁️ Voir</button>
+            <button class="add-to-wishlist">❤️</button>
+          </div>
+        </div>
+
+        <!-- Info produit -->
+        <div class="product-info">
+          <h3 class="product-name">{{ product.name }}</h3>
+          <p class="product-description">{{ product.description | slice:0:60 }}...</p>
+
+          <div class="product-price">
+            <span *ngIf="product.discountPrice" class="old-price">
+              {{ product.price }}€
+            </span>
+            <span class="current-price">
+              {{ product.discountPrice || product.price }}€
+            </span>
+          </div>
+
+          <div class="product-meta">
+            <div class="rating">
+              ⭐ {{ product.rating }} ({{ product.reviews }})
+            </div>
+            <div class="sizes">
+              Tailles: {{ product.sizes.join(', ') }}
+            </div>
+          </div>
+
+          <button (click)="addToCart(product)" class="add-to-cart-btn">
+            🛒 Ajouter au panier
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

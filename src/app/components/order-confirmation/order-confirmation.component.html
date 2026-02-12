@@ -1,0 +1,92 @@
+<div class="confirmation-page">
+  <div class="confirmation-header">
+    <div class="container">
+      <div class="success-icon">✅</div>
+      <h1>Commande Confirmée !</h1>
+      <p>Merci pour votre achat chez Fashion Store</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="confirmation-content">
+      <!-- Informations de commande -->
+      <div class="order-info">
+        <div class="info-card">
+          <h3>Résumé de la commande</h3>
+          <div class="info-row">
+            <span>Numéro de commande :</span>
+            <strong>{{ orderId }}</strong>
+          </div>
+          <div class="info-row">
+            <span>Date de commande :</span>
+            <span>{{ today | date:'dd/MM/yyyy à HH:mm' }}</span>
+          </div>
+          <div class="info-row">
+            <span>Montant total :</span>
+            <strong class="total-price">{{ orderTotal.toFixed(2) }} DT</strong>
+          </div>
+          <div class="info-row">
+            <span>Livraison estimée :</span>
+            <span>{{ estimatedDelivery | date:'dd/MM/yyyy' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Étapes -->
+      <div class="timeline">
+        <div class="timeline-step active">
+          <div class="step-icon">📦</div>
+          <div class="step-content">
+            <h4>Commande confirmée</h4>
+            <p>Votre commande a été reçue</p>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="step-icon">🚚</div>
+          <div class="step-content">
+            <h4>En préparation</h4>
+            <p>Nous préparons votre commande</p>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="step-icon">📬</div>
+          <div class="step-content">
+            <h4>Expédiée</h4>
+            <p>Votre commande est en route</p>
+          </div>
+        </div>
+        <div class="timeline-step">
+          <div class="step-icon">🏠</div>
+          <div class="step-content">
+            <h4>Livrée</h4>
+            <p>Votre commande est arrivée</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <button class="btn-primary" (click)="continueShopping()">
+          🛍️ Continuer mes achats
+        </button>
+        <button class="btn-secondary" (click)="trackOrder()">
+          📱 Suivre ma commande
+        </button>
+      </div>
+
+      <!-- Support -->
+      <div class="support">
+        <h3>Besoin d'aide ?</h3>
+        <p>Notre équipe support est disponible pour vous aider</p>
+        <div class="contact-options">
+          <a href="tel:+21612345678" class="contact-link">
+            📞 Appeler le support
+          </a>
+          <a href="mailto:support-fashionstore.com" class="contact-link">
+            📧 Envoyer un email
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

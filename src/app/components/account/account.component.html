@@ -1,0 +1,336 @@
+<div class="account-page">
+  <!-- Header -->
+  <div class="account-header">
+    <div class="container">
+      <div class="header-content">
+        <h1><i class="fas fa-user-circle"></i> Mon Compte</h1>
+        <p>Gérez vos informations, commandes et préférences</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="account-layout">
+      <!-- Sidebar -->
+      <div class="account-sidebar">
+        <div class="user-profile">
+          <img [src]="user?.avatar" alt="Avatar" class="user-avatar">
+          <div class="user-info">
+            <h3>{{ user?.firstName }} {{ user?.lastName }}</h3>
+            <p class="user-email">{{ user?.email }}</p>
+            <p class="user-role">
+              <i class="fas fa-shield-alt"></i>
+              {{ user?.role === 'admin' ? 'Administrateur' : 'Client' }}
+            </p>
+          </div>
+        </div>
+
+        <nav class="account-nav">
+          <a [class.active]="activeTab === 'profile'" (click)="activeTab = 'profile'">
+            <i class="fas fa-user"></i>
+            Mon Profil
+          </a>
+          <a [class.active]="activeTab === 'orders'" (click)="activeTab = 'orders'">
+            <i class="fas fa-shopping-bag"></i>
+            Mes Commandes
+            <span class="badge">{{ orders.length }}</span>
+          </a>
+          <a [class.active]="activeTab === 'wishlist'" (click)="activeTab = 'wishlist'">
+            <i class="fas fa-heart"></i>
+            Ma Liste de Souhaits
+            <span class="badge">{{ wishlist.length }}</span>
+          </a>
+          <a [class.active]="activeTab === 'settings'" (click)="activeTab = 'settings'">
+            <i class="fas fa-cog"></i>
+            Paramètres
+          </a>
+          <a routerLink="/" class="store-link">
+            <i class="fas fa-store"></i>
+            Retour à la boutique
+          </a>
+          <a href="javascript:void(0)" (click)="logout()" class="logout-link">
+            <i class="fas fa-sign-out-alt"></i>
+            Déconnexion
+          </a>
+        </nav>
+
+        <div class="account-stats">
+          <div class="stat-card">
+            <i class="fas fa-shopping-cart"></i>
+            <div>
+              <h4>{{ user?.ordersCount || 0 }}</h4>
+              <p>Commandes</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <i class="fas fa-coins"></i>
+            <div>
+              <h4>{{ (user?.totalSpent || 0).toFixed(2) }} DT</h4>
+              <p>Total dépensé</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="account-content">
+        <!-- Profil Tab -->
+        <div *ngIf="activeTab === 'profile'" class="tab-content">
+          <div class="tab-header">
+            <h2><i class="fas fa-user-edit"></i> Mon Profil</h2>
+            <button *ngIf="!editMode" class="edit-btn" (click)="editMode = true">
+              <i class="fas fa-edit"></i> Modifier
+            </button>
+            <div *ngIf="editMode" class="edit-actions">
+              <button class="save-btn" (click)="updateProfile()">
+                <i class="fas fa-save"></i> Enregistrer
+              </button>
+              <button class="cancel-btn" (click)="editMode = false; loadUserData()">
+                <i class="fas fa-times"></i> Annuler
+              </button>
+            </div>
+          </div>
+
+          <div class="profile-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label><i class="fas fa-user"></i> Prénom</label>
+                <input type="text" [(ngModel)]="profileData.firstName" [disabled]="!editMode">
+              </div>
+              <div class="form-group">
+                <label><i class="fas fa-user"></i> Nom</label>
+                <input type="text" [(ngModel)]="profileData.lastName" [disabled]="!editMode">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-envelope"></i> Email</label>
+              <input type="email" [(ngModel)]="profileData.email" [disabled]="!editMode">
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-phone"></i> Téléphone</label>
+              <input type="tel" [(ngModel)]="profileData.phone" [disabled]="!editMode">
+            </div>
+
+            <div class="form-group">
+              <label><i class="fas fa-home"></i> Adresse</label>
+              <input type="text" [(ngModel)]="profileData.address" [disabled]="!editMode"
+                     placeholder="Votre adresse complète">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label><i class="fas fa-city"></i> Ville</label>
+                <input type="text" [(ngModel)]="profileData.city" [disabled]="!editMode">
+              </div>
+              <div class="form-group">
+                <label><i class="fas fa-mail-bulk"></i> Code Postal</label>
+                <input type="text" [(ngModel)]="profileData.zipCode" [disabled]="!editMode">
+              </div>
+            </div>
+          </div>
+
+          <div class="security-section">
+            <h3><i class="fas fa-shield-alt"></i> Sécurité</h3>
+            <div class="security-actions">
+              <button class="btn-secondary">
+                <i class="fas fa-key"></i> Changer le mot de passe
+              </button>
+              <button class="btn-secondary">
+                <i class="fas fa-bell"></i> Préférences de notifications
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Orders Tab -->
+        <div *ngIf="activeTab === 'orders'" class="tab-content">
+          <div class="tab-header">
+            <h2><i class="fas fa-history"></i> Historique des Commandes</h2>
+            <p class="subtitle">{{ orders.length }} commande(s) au total</p>
+          </div>
+
+          <div *ngIf="orders.length === 0" class="empty-state">
+            <i class="fas fa-shopping-cart"></i>
+            <h3>Aucune commande</h3>
+            <p>Vous n'avez pas encore passé de commande</p>
+            <button routerLink="/products" class="btn-primary">
+              <i class="fas fa-shopping-bag"></i> Découvrir la boutique
+            </button>
+          </div>
+
+          <div *ngIf="orders.length > 0" class="orders-list">
+            <div *ngFor="let order of orders" class="order-card">
+              <div class="order-header">
+                <div>
+                  <h4>Commande #{{ order.id }}</h4>
+                  <p class="order-date">
+                    <i class="far fa-calendar"></i>
+                    {{ order.createdAt | date:'dd/MM/yyyy à HH:mm' }}
+                  </p>
+                </div>
+                <div class="order-status">
+                  <span class="status-badge" [class]="getOrderStatusColor(order.status)">
+                    {{ getOrderStatusText(order.status) }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="order-items">
+                <div *ngFor="let item of order.items" class="order-item">
+                  <img [src]="item.image" [alt]="item.name" class="item-image">
+                  <div class="item-details">
+                    <h5>{{ item.name }}</h5>
+                    <p>{{ item.size }} | {{ item.color }}</p>
+                    <p>{{ item.quantity }} × {{ item.price.toFixed(2) }} DT</p>
+                  </div>
+                  <div class="item-total">
+                    {{ (item.price * item.quantity).toFixed(2) }} DT
+                  </div>
+                </div>
+              </div>
+
+              <div class="order-footer">
+                <div class="order-total">
+                  <strong>Total : {{ order.total.toFixed(2) }} DT</strong>
+                </div>
+                <div class="order-actions">
+                  <button class="btn-outline">
+                    <i class="fas fa-eye"></i> Voir les détails
+                  </button>
+                  <button *ngIf="order.status === 'pending'"
+                          class="btn-danger"
+                          (click)="cancelOrder(order.id)">
+                    <i class="fas fa-times"></i> Annuler
+                  </button>
+                  <button *ngIf="order.status === 'delivered'" class="btn-secondary">
+                    <i class="fas fa-redo"></i> Commander à nouveau
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wishlist Tab -->
+        <div *ngIf="activeTab === 'wishlist'" class="tab-content">
+          <div class="tab-header">
+            <h2><i class="fas fa-heart"></i> Ma Liste de Souhaits</h2>
+            <p class="subtitle">{{ wishlist.length }} article(s) sauvegardé(s)</p>
+          </div>
+
+          <div *ngIf="wishlist.length === 0" class="empty-state">
+            <i class="fas fa-heart"></i>
+            <h3>Liste de souhaits vide</h3>
+            <p>Ajoutez vos produits préférés ici</p>
+            <button routerLink="/products" class="btn-primary">
+              <i class="fas fa-shopping-bag"></i> Explorer la boutique
+            </button>
+          </div>
+
+          <div *ngIf="wishlist.length > 0" class="wishlist-grid">
+            <div *ngFor="let product of wishlist" class="wishlist-item">
+              <div class="item-image">
+                <img [src]="product.images[0]" [alt]="product.name">
+                <button class="remove-btn" (click)="removeFromWishlist(product.id)">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="item-info">
+                <h4>{{ product.name }}</h4>
+                <p class="item-category">{{ product.category }}</p>
+                <div class="item-price">
+                  <span class="price">{{ (product.discountPrice || product.price).toFixed(2) }} DT</span>
+                  <span *ngIf="product.discountPrice" class="old-price">
+                    {{ product.price.toFixed(2) }} DT
+                  </span>
+                </div>
+                <div class="item-actions">
+                  <button class="btn-primary">
+                    <i class="fas fa-shopping-cart"></i> Ajouter au panier
+                  </button>
+                  <button class="btn-outline">
+                    <i class="far fa-eye"></i> Voir
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div *ngIf="activeTab === 'settings'" class="tab-content">
+          <div class="tab-header">
+            <h2><i class="fas fa-cogs"></i> Paramètres du compte</h2>
+          </div>
+
+          <div class="settings-grid">
+            <div class="setting-card">
+              <i class="fas fa-bell"></i>
+              <h3>Notifications</h3>
+              <p>Gérez vos préférences de notifications</p>
+              <div class="setting-options">
+                <label>
+                  <input type="checkbox" checked>
+                  <span>Promotions et offres</span>
+                </label>
+                <label>
+                  <input type="checkbox" checked>
+                  <span>Mises à jour de commande</span>
+                </label>
+                <label>
+                  <input type="checkbox">
+                  <span>Newsletter</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-card">
+              <i class="fas fa-credit-card"></i>
+              <h3>Moyens de paiement</h3>
+              <p>Gérez vos cartes enregistrées</p>
+              <button class="btn-outline">
+                <i class="fas fa-plus"></i> Ajouter une carte
+              </button>
+            </div>
+
+            <div class="setting-card">
+              <i class="fas fa-map-marker-alt"></i>
+              <h3>Adresses</h3>
+              <p>Gérez vos adresses de livraison</p>
+              <button class="btn-outline">
+                <i class="fas fa-plus"></i> Ajouter une adresse
+              </button>
+            </div>
+
+            <div class="setting-card">
+              <i class="fas fa-shield-alt"></i>
+              <h3>Sécurité</h3>
+              <p>Protégez votre compte</p>
+              <button class="btn-outline">
+                <i class="fas fa-key"></i> Changer le mot de passe
+              </button>
+            </div>
+          </div>
+
+          <div class="danger-zone">
+            <h3><i class="fas fa-exclamation-triangle"></i> Zone dangereuse</h3>
+            <p>Ces actions sont irréversibles. Soyez certain de ce que vous faites.</p>
+            <div class="danger-actions">
+              <button class="btn-danger">
+                <i class="fas fa-file-export"></i> Exporter mes données
+              </button>
+              <button class="btn-danger">
+                <i class="fas fa-user-slash"></i> Désactiver mon compte
+              </button>
+              <button class="btn-danger">
+                <i class="fas fa-trash"></i> Supprimer mon compte
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,168 @@
+<div class="home-page">
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-slider">
+      <div class="slide active">
+        <div class="slide-content">
+          <span class="slide-badge">Nouvelle Collection</span>
+          <h1 class="hero-title">Style Printemps 2026</h1>
+          <p class="hero-subtitle">Découvrez les dernières tendances mode pour cette saison</p>
+          <button routerLink="/category/homme" class="hero-btn">Explorer la collection</button>
+        </div>
+        <div class="slide-image">
+          <img src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&h=800&fit=crop" alt="Collection Printemps">
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-stats">
+      <div class="stat">
+        <span class="stat-number">10K+</span>
+        <span class="stat-label">Clients satisfaits</span>
+      </div>
+      <div class="stat">
+        <span class="stat-number">500+</span>
+        <span class="stat-label">Nouveaux produits</span>
+      </div>
+      <div class="stat">
+        <span class="stat-number">24h</span>
+        <span class="stat-label">Livraison express</span>
+      </div>
+      <div class="stat">
+        <span class="stat-number">100%</span>
+        <span class="stat-label">Satisfaction garantie</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Categories -->
+  <section class="categories-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Shop by Category</h2>
+        <p class="section-subtitle">Parcourez nos collections exclusives</p>
+      </div>
+      <div class="categories-grid">
+        <div *ngFor="let category of categories"
+             class="category-card"
+             [style.background]="category.gradient"
+             routerLink="/category/{{category.name.toLowerCase()}}">
+          <div class="category-content">
+            <span class="category-icon">{{ category.icon }}</span>
+            <h3>{{ category.name }}</h3>
+            <p>{{ category.count }} produits</p>
+            <span class="category-arrow">→</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Products -->
+  <section class="featured-section">
+    <div class="container">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Produits Populaires</h2>
+          <p class="section-subtitle">Découvrez nos best-sellers</p>
+        </div>
+        <a routerLink="/products" class="view-all-btn">Voir tout →</a>
+      </div>
+      <div class="products-grid">
+        <div *ngFor="let product of featuredProducts" class="product-card">
+          <div class="product-badges">
+            <span *ngIf="product.discountPrice" class="badge discount">
+              -{{ getDiscountPercentage(product) }}%
+            </span>
+            <span *ngIf="product.tags.includes('nouveau')" class="badge new">
+              Nouveau
+            </span>
+          </div>
+          <div class="product-image" routerLink="/product/{{product.id}}">
+            <img [src]="product.images[0]" [alt]="product.name">
+            <div class="product-overlay">
+              <button class="quick-view" (click)="$event.stopPropagation(); quickView(product)">👁️ Voir</button>
+              <button class="add-to-wishlist">❤️</button>
+            </div>
+          </div>
+          <div class="product-info">
+            <span class="product-category">{{ product.category | uppercase }}</span>
+            <h3 class="product-name">{{ product.name }}</h3>
+            <div class="product-price">
+              <span *ngIf="product.discountPrice" class="old-price">
+                {{ product.price.toFixed(2) }} DT
+              </span>
+              <span class="current-price">
+                {{ (product.discountPrice || product.price).toFixed(2) }} DT
+              </span>
+            </div>
+            <div class="product-actions">
+              <button class="add-to-cart-btn" (click)="addToCart(product)">
+                🛒 Ajouter
+              </button>
+              <div class="rating">
+                ⭐ {{ product.rating }}
+                <span class="reviews">({{ product.reviews }})</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Banner -->
+  <section class="promo-banner">
+    <div class="container">
+      <div class="banner-content">
+        <div class="banner-text">
+          <span class="banner-subtitle">Promotion spéciale</span>
+          <h2 class="banner-title">Jusqu'à 50% de réduction</h2>
+          <p class="banner-description">Sur toute la collection d'été</p>
+          <button routerLink="/sale" class="banner-btn">Profiter des offres</button>
+        </div>
+        <div class="banner-image">
+          <img src="https://images.unsplash.com/photo-1445205170230-053b83016050?w=600&h=400&fit=crop" alt="Promotion">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- New Arrivals -->
+  <section class="new-arrivals">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Nouveautés</h2>
+        <p class="section-subtitle">Dernières arrivées en boutique</p>
+      </div>
+      <div class="arrivals-grid">
+        <div class="arrival-card" *ngFor="let product of newArrivals">
+          <div class="arrival-image">
+            <img [src]="product.images[0]" [alt]="product.name">
+            <div class="arrival-badge">Nouveau</div>
+          </div>
+          <div class="arrival-info">
+            <h3>{{ product.name }}</h3>
+            <p>{{ product.price.toFixed(2) }} DT</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Newsletter -->
+  <section class="newsletter">
+    <div class="container">
+      <div class="newsletter-content">
+        <div class="newsletter-text">
+          <h2>Restez informé</h2>
+          <p>Abonnez-vous à notre newsletter pour recevoir les dernières nouveautés et offres exclusives</p>
+        </div>
+        <div class="newsletter-form">
+          <input type="email" placeholder="Votre adresse email">
+          <button>S'abonner</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

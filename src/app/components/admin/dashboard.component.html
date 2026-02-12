@@ -1,0 +1,455 @@
+<div class="admin-dashboard">
+  <!-- Header -->
+  <div class="admin-header">
+    <div class="container">
+      <div class="header-content">
+        <div>
+          <h1><i class="fas fa-tachometer-alt"></i> Tableau de Bord Admin</h1>
+          <p>Gérez votre boutique en ligne</p>
+        </div>
+        <button class="back-to-store" routerLink="/">
+          <i class="fas fa-store"></i> Boutique
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Tabs Navigation -->
+    <div class="admin-tabs">
+      <button [class.active]="activeTab === 'overview'" (click)="activeTab = 'overview'">
+        <i class="fas fa-chart-line"></i> Vue d'ensemble
+      </button>
+      <button [class.active]="activeTab === 'orders'" (click)="activeTab = 'orders'">
+        <i class="fas fa-shopping-bag"></i> Commandes
+        <span class="badge">{{ orders.length }}</span>
+      </button>
+      <button [class.active]="activeTab === 'products'" (click)="activeTab = 'products'">
+        <i class="fas fa-tshirt"></i> Produits
+        <span class="badge">{{ products.length }}</span>
+      </button>
+      <button [class.active]="activeTab === 'users'" (click)="activeTab = 'users'">
+        <i class="fas fa-users"></i> Utilisateurs
+        <span class="badge">{{ users.length }}</span>
+      </button>
+      <button [class.active]="activeTab === 'settings'" (click)="activeTab = 'settings'">
+        <i class="fas fa-cogs"></i> Paramètres
+      </button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div *ngIf="activeTab === 'overview'" class="tab-content">
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon revenue">
+            <i class="fas fa-money-bill-wave"></i>
+          </div>
+          <div class="stat-info">
+            <h3>{{ stats.totalRevenue?.toFixed(2) || '0' }} DT</h3>
+            <p>Revenu total</p>
+            <span class="stat-trend positive">
+              <i class="fas fa-arrow-up"></i> 12% ce mois
+            </span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon orders">
+            <i class="fas fa-shopping-cart"></i>
+          </div>
+          <div class="stat-info">
+            <h3>{{ stats.totalOrders || 0 }}</h3>
+            <p>Commandes totales</p>
+            <span class="stat-trend positive">
+              <i class="fas fa-arrow-up"></i> 8% ce mois
+            </span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon products">
+            <i class="fas fa-box-open"></i>
+          </div>
+          <div class="stat-info">
+            <h3>{{ products.length }}</h3>
+            <p>Produits actifs</p>
+            <span class="stat-trend">
+              <i class="fas fa-minus"></i> Stable
+            </span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon users">
+            <i class="fas fa-user-friends"></i>
+          </div>
+          <div class="stat-info">
+            <h3>{{ users.length }}</h3>
+            <p>Utilisateurs</p>
+            <span class="stat-trend positive">
+              <i class="fas fa-arrow-up"></i> 15% ce mois
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Orders & Top Products -->
+      <div class="dashboard-grid">
+        <div class="dashboard-card">
+          <div class="card-header">
+            <h3><i class="fas fa-history"></i> Commandes récentes</h3>
+            <button class="view-all" (click)="activeTab = 'orders'">Voir tout</button>
+          </div>
+          <div class="card-content">
+            <div *ngIf="recentOrders.length === 0" class="empty-state">
+              Aucune commande récente
+            </div>
+            <div *ngFor="let order of recentOrders" class="order-row">
+              <div class="order-info">
+                <strong>#{{ order.id }}</strong>
+                <span>{{ order.total.toFixed(2) }} DT</span>
+              </div>
+              <div class="order-meta">
+                <span class="status" [class]="order.status">{{ order.status }}</span>
+                <span class="date">{{ order.createdAt | date:'dd/MM/yy' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-card">
+          <div class="card-header">
+            <h3><i class="fas fa-chart-bar"></i> Produits populaires</h3>
+          </div>
+          <div class="card-content">
+            <div *ngIf="topProducts.length === 0" class="empty-state">
+              Aucune vente
+            </div>
+            <div *ngFor="let item of topProducts; let i = index" class="product-row">
+              <div class="rank">{{ i + 1 }}</div>
+              <img [src]="item.product.images[0]" [alt]="item.product.name">
+              <div class="product-info">
+                <strong>{{ item.product.name }}</strong>
+                <span>{{ item.quantity }} ventes</span>
+              </div>
+              <div class="product-revenue">
+                {{ (item.product.price * item.quantity).toFixed(2) }} DT
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order Status Chart -->
+      <div class="dashboard-card full-width">
+        <div class="card-header">
+          <h3><i class="fas fa-chart-pie"></i> Statut des commandes</h3>
+        </div>
+        <div class="card-content">
+          <div class="status-chart">
+            <div class="status-item pending">
+              <div class="status-label">En attente</div>
+              <div class="status-bar">
+                <div class="bar-fill" [style.width.%]="(stats.statusCounts?.pending / stats.totalOrders * 100) || 0"></div>
+              </div>
+              <div class="status-count">{{ stats.statusCounts?.pending || 0 }}</div>
+            </div>
+            <div class="status-item processing">
+              <div class="status-label">En traitement</div>
+              <div class="status-bar">
+                <div class="bar-fill" [style.width.%]="(stats.statusCounts?.processing / stats.totalOrders * 100) || 0"></div>
+              </div>
+              <div class="status-count">{{ stats.statusCounts?.processing || 0 }}</div>
+            </div>
+            <div class="status-item shipped">
+              <div class="status-label">Expédiées</div>
+              <div class="status-bar">
+                <div class="bar-fill" [style.width.%]="(stats.statusCounts?.shipped / stats.totalOrders * 100) || 0"></div>
+              </div>
+              <div class="status-count">{{ stats.statusCounts?.shipped || 0 }}</div>
+            </div>
+            <div class="status-item delivered">
+              <div class="status-label">Livrées</div>
+              <div class="status-bar">
+                <div class="bar-fill" [style.width.%]="(stats.statusCounts?.delivered / stats.totalOrders * 100) || 0"></div>
+              </div>
+              <div class="status-count">{{ stats.statusCounts?.delivered || 0 }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders Tab -->
+    <div *ngIf="activeTab === 'orders'" class="tab-content">
+      <div class="tab-header">
+        <h2><i class="fas fa-shopping-bag"></i> Gestion des Commandes</h2>
+        <div class="header-actions">
+          <button class="btn-primary" (click)="exportData('orders')">
+            <i class="fas fa-download"></i> Exporter
+          </button>
+        </div>
+      </div>
+
+      <div class="orders-table">
+        <table>
+          <thead>
+            <tr>
+              <th>ID Commande</th>
+              <th>Client</th>
+              <th>Date</th>
+              <th>Montant</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let order of orders">
+              <td><strong>#{{ order.id }}</strong></td>
+              <td>Client #{{ order.userId }}</td>
+              <td>{{ order.createdAt | date:'dd/MM/yyyy' }}</td>
+              <td>{{ order.total.toFixed(2) }} DT</td>
+              <td>
+                <select [value]="order.status" (change)="updateOrderStatus(order.id, $any($event.target).value)">
+                  <option value="pending">En attente</option>
+                  <option value="processing">En traitement</option>
+                  <option value="shipped">Expédiée</option>
+                  <option value="delivered">Livrée</option>
+                  <option value="cancelled">Annulée</option>
+                </select>
+              </td>
+              <td>
+                <button class="btn-icon" title="Voir les détails">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn-icon" title="Imprimer la facture">
+                  <i class="fas fa-print"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Products Tab -->
+    <div *ngIf="activeTab === 'products'" class="tab-content">
+      <div class="tab-header">
+        <h2><i class="fas fa-tshirt"></i> Gestion des Produits</h2>
+        <div class="header-actions">
+          <button class="btn-primary" (click)="openProductForm()">
+            <i class="fas fa-plus"></i> Ajouter un produit
+          </button>
+          <button class="btn-secondary" (click)="exportData('products')">
+            <i class="fas fa-download"></i> Exporter
+          </button>
+        </div>
+      </div>
+
+      <div class="products-grid">
+        <div *ngFor="let product of products" class="product-card">
+          <div class="product-image">
+            <img [src]="product.images[0]" [alt]="product.name">
+            <div class="product-badges">
+              <span *ngIf="product.discountPrice" class="badge sale">PROMO</span>
+              <span *ngIf="!product.inStock" class="badge out-of-stock">RUPTURE</span>
+            </div>
+          </div>
+          <div class="product-info">
+            <h4>{{ product.name }}</h4>
+            <p class="category">{{ product.category }} - {{ product.subcategory }}</p>
+            <div class="product-price">
+              <span class="price">{{ (product.discountPrice || product.price).toFixed(2) }} DT</span>
+              <span *ngIf="product.discountPrice" class="old-price">
+                {{ product.price.toFixed(2) }} DT
+              </span>
+            </div>
+            <div class="product-meta">
+              <span><i class="fas fa-star"></i> {{ product.rating }}</span>
+              <span><i class="fas fa-shopping-cart"></i> {{ product.reviews }}</span>
+            </div>
+          </div>
+          <div class="product-actions">
+            <button class="btn-icon" (click)="openProductForm(product)" title="Modifier">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn-icon danger" (click)="deleteProduct(product.id)" title="Supprimer">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users Tab -->
+    <div *ngIf="activeTab === 'users'" class="tab-content">
+      <div class="tab-header">
+        <h2><i class="fas fa-users"></i> Gestion des Utilisateurs</h2>
+        <div class="header-actions">
+          <button class="btn-secondary" (click)="exportData('users')">
+            <i class="fas fa-download"></i> Exporter
+          </button>
+        </div>
+      </div>
+
+      <div class="users-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Email</th>
+              <th>Rôle</th>
+              <th>Commandes</th>
+              <th>Total dépensé</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let user of users">
+              <td>
+                <div class="user-cell">
+                  <img [src]="user.avatar" alt="Avatar">
+                  <div>
+                    <strong>{{ user.firstName }} {{ user.lastName }}</strong>
+                    <span>Inscrit le {{ user.createdAt | date:'dd/MM/yyyy' }}</span>
+                  </div>
+                </div>
+              </td>
+              <td>{{ user.email }}</td>
+              <td>
+                <span class="role-badge" [class.admin]="user.role === 'admin'">
+                  {{ user.role === 'admin' ? 'Admin' : 'Client' }}
+                </span>
+              </td>
+              <td>{{ user.ordersCount }}</td>
+              <td>{{ user.totalSpent.toFixed(2) }} DT</td>
+              <td>
+                <span class="status-badge" [class.active]="user.isActive">
+                  {{ user.isActive ? 'Actif' : 'Inactif' }}
+                </span>
+              </td>
+              <td>
+                <button class="btn-icon" title="Modifier">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn-icon" (click)="toggleUserStatus(user.id)"
+                        [title]="user.isActive ? 'Désactiver' : 'Activer'">
+                  <i class="fas" [class.fa-user-slash]="user.isActive" [class.fa-user-check]="!user.isActive"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div *ngIf="activeTab === 'settings'" class="tab-content">
+      <div class="tab-header">
+        <h2><i class="fas fa-cogs"></i> Paramètres du Dashboard</h2>
+      </div>
+
+      <div class="settings-form">
+        <div class="form-section">
+          <h3><i class="fas fa-store"></i> Paramètres de la boutique</h3>
+          <div class="form-group">
+            <label>Nom de la boutique</label>
+            <input type="text" value="FashionStore" placeholder="Nom de votre boutique">
+          </div>
+          <div class="form-group">
+            <label>Email de contact</label>
+            <input type="email" value="contact@fashionstore.com" placeholder="Email de contact">
+          </div>
+          <div class="form-group">
+            <label>Téléphone</label>
+            <input type="tel" value="+216 12 345 678" placeholder="Numéro de téléphone">
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3><i class="fas fa-truck"></i> Livraison</h3>
+          <div class="form-group">
+            <label>Frais de livraison standard (DT)</label>
+            <input type="number" value="7.99" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Livraison gratuite à partir de (DT)</label>
+            <input type="number" value="99" min="0">
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3><i class="fas fa-receipt"></i> Taxes</h3>
+          <div class="form-group">
+            <label>TVA (%)</label>
+            <input type="number" value="7" min="0" max="100" step="0.1">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-primary">
+            <i class="fas fa-save"></i> Sauvegarder les modifications
+          </button>
+          <button class="btn-secondary">
+            <i class="fas fa-redo"></i> Restaurer les valeurs par défaut
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Form Modal -->
+  <div *ngIf="showProductForm" class="modal-overlay" (click)="showProductForm = false">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ editProductId ? 'Modifier le produit' : 'Ajouter un produit' }}</h3>
+        <button class="close-modal" (click)="showProductForm = false">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form (ngSubmit)="saveProduct()">
+          <div class="form-group">
+            <label>Nom du produit</label>
+            <input type="text" [(ngModel)]="productForm.name" name="name" required>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea [(ngModel)]="productForm.description" name="description" rows="3" required></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Prix (DT)</label>
+              <input type="number" [(ngModel)]="productForm.price" name="price" min="0" step="0.01" required>
+            </div>
+            <div class="form-group">
+              <label>Prix promotionnel (DT)</label>
+              <input type="number" [(ngModel)]="productForm.discountPrice" name="discountPrice" min="0" step="0.01">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Catégorie</label>
+              <input type="text" [(ngModel)]="productForm.category" name="category" required>
+            </div>
+            <div class="form-group">
+              <label>Sous-catégorie</label>
+              <select [(ngModel)]="productForm.subcategory" name="subcategory">
+                <option value="homme">Homme</option>
+                <option value="femme">Femme</option>
+                <option value="enfant">Enfant</option>
+                <option value="accessoire">Accessoire</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Sauvegarder</button>
+            <button type="button" class="btn-secondary" (click)="showProductForm = false">Annuler</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
