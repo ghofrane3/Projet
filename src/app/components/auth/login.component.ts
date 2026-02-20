@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -12,112 +13,103 @@ import { AuthService } from '../../services/auth.service';
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent {
-  isLoginMode = true;
-  formData = {
-    firstName: '',
-    lastName: '',
+  credentials = {
     email: '',
-    phone: '',
-    password: '',
-    confirmPassword: ''
+    password: ''
   };
+
   errorMessage = '';
-  isLoading = false;
+  loading = false;
+  showPassword = false;
+  rememberMe = false;
+
+  // 🆕 NOUVEAU : Gestion de la vérification email
+  needsVerification = false;
+  emailToVerify = '';
+  resendLoading = false;
+  resendSuccess = false;
 
   constructor(
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private http: HttpClient
   ) {}
 
-  toggleMode(): void {
-    this.isLoginMode = !this.isLoginMode;
-    this.errorMessage = '';
-    this.formData = {
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      password: '',
-      confirmPassword: ''
-    };
-  }
-
+  // ═══════════════════════════════════════════════════════════
+  // CONNEXION
+  // ═══════════════════════════════════════════════════════════
   onSubmit(): void {
     this.errorMessage = '';
+    this.needsVerification = false;
+    this.resendSuccess = false;
 
-    if (this.isLoginMode) {
-      this.login();
-    } else {
-      this.register();
-    }
-  }
-
-  private login(): void {
-    if (!this.formData.email || !this.formData.password) {
-      this.errorMessage = 'Veuillez remplir tous les champs';
+    if (!this.credentials.email || !this.credentials.password) {
+      this.errorMessage = 'Tous les champs sont requis';
       return;
     }
 
-    this.isLoading = true;
+    this.loading = true;
 
-    // Simuler un délai de traitement
-    setTimeout(() => {
-      const success = this.authService.login(this.formData.email, this.formData.password);
+    console.log('🔐 Tentative de connexion...');
 
-      if (success) {
-        this.router.navigate(['/']);
-      } else {
-        this.errorMessage = 'Email ou mot de passe incorrect';
+    this.authService.login(this.credentials).subscribe({
+      next: (response) => {
+        console.log('✅ Connexion réussie:', response);
+        this.loading = false;
+
+        // Redirection immédiate
+        if (response.user.role === 'admin') {
+          this.router.navigate(['/admin/dashboard']);
+        } else {
+          this.router.navigate(['/']);
+        }
+      },
+      error: (error) => {
+        console.error('❌ Erreur connexion:', error);
+        this.loading = false;
+
+        // 🆕 NOUVEAU : Vérifier si c'est un problème de vérification
+        if (error.status === 403 && error.error?.needsVerification) {
+          this.needsVerification = true;
+          this.emailToVerify = error.error.email || this.credentials.email;
+          this.errorMessage = error.error.message;
+        } else {
+          this.errorMessage = error.error?.message || 'Email ou mot de passe incorrect';
+        }
       }
-
-      this.isLoading = false;
-    }, 1000);
+    });
   }
 
-  private register(): void {
-    // Validation
-    if (!this.formData.firstName || !this.formData.lastName ||
-        !this.formData.email || !this.formData.phone ||
-        !this.formData.password) {
-      this.errorMessage = 'Veuillez remplir tous les champs obligatoires';
-      return;
-    }
+  // ═══════════════════════════════════════════════════════════
+  // 🆕 RENVOYER L'EMAIL DE VÉRIFICATION
+  // ═══════════════════════════════════════════════════════════
+  resendVerificationEmail(): void {
+    this.resendLoading = true;
+    this.resendSuccess = false;
+    this.errorMessage = '';
 
-    if (this.formData.password !== this.formData.confirmPassword) {
-      this.errorMessage = 'Les mots de passe ne correspondent pas';
-      return;
-    }
+    console.log('📧 Renvoi de l\'email de vérification à:', this.emailToVerify);
 
-    if (this.formData.password.length < 6) {
-      this.errorMessage = 'Le mot de passe doit contenir au moins 6 caractères';
-      return;
-    }
-
-    this.isLoading = true;
-
-    // Simuler un délai de traitement
-    setTimeout(() => {
-      const success = this.authService.register({
-        firstName: this.formData.firstName,
-        lastName: this.formData.lastName,
-        email: this.formData.email,
-        phone: this.formData.phone,
-        password: this.formData.password
-      });
-
-      if (success) {
-        this.router.navigate(['/']);
-      } else {
-        this.errorMessage = 'Un compte existe déjà avec cet email';
+    this.http.post('http://localhost:5000/api/auth/resend-verification', {
+      email: this.emailToVerify
+    }).subscribe({
+      next: (response: any) => {
+        console.log('✅ Email renvoyé:', response);
+        this.resendLoading = false;
+        this.resendSuccess = true;
+      },
+      error: (error) => {
+        console.error('❌ Erreur renvoi:', error);
+        this.resendLoading = false;
+        this.errorMessage = error.error?.message || 'Erreur lors du renvoi de l\'email';
       }
-
-      this.isLoading = false;
-    }, 1500);
+    });
   }
 
-  loginWithDemo(): void {
-    this.formData.email = 'admin@fashionstore.com';
-    this.formData.password = 'admin123';
-    this.login();
+  // ═══════════════════════════════════════════════════════════
+  // TOGGLE PASSWORD VISIBILITY
+  // ═══════════════════════════════════════════════════════════
+  togglePasswordVisibility(): void {
+    this.showPassword = !this.showPassword;
   }
 }

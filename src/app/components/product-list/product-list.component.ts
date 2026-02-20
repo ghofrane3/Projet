@@ -30,6 +30,7 @@ export class ProductListComponent implements OnInit {
     this.categories = this.productService.getCategories();
       this.api.getProducts().subscribe(data => {
     console.log(data);
+    // this.products = data;
   });
   }
 

@@ -1,154 +1,135 @@
-<div class="auth-page">
-  <div class="auth-container">
-    <div class="auth-left">
-      <div class="brand-logo">
-        <i class="fas fa-tshirt"></i>
-        <span>FashionStore</span>
-      </div>
-      <h1>{{ isLoginMode ? 'Connexion' : 'Créer un compte' }}</h1>
-      <p>{{ isLoginMode ? 'Connectez-vous à votre compte' : 'Rejoignez notre communauté de mode' }}</p>
+<div class="login-container">
+  <div class="login-card">
 
-      <div class="auth-benefits">
-        <div class="benefit">
-          <i class="fas fa-shopping-bag"></i>
-          <span>Suivez vos commandes</span>
-        </div>
-        <div class="benefit">
-          <i class="fas fa-heart"></i>
-          <span>Gérez vos favoris</span>
-        </div>
-        <div class="benefit">
-          <i class="fas fa-tags"></i>
-          <span>Offres exclusives</span>
-        </div>
-      </div>
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- HEADER -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <div class="header">
+      <h1>Connexion</h1>
+      <p>Connectez-vous à votre compte</p>
     </div>
 
-    <div class="auth-right">
-      <form (ngSubmit)="onSubmit()" #authForm="ngForm">
-        <div *ngIf="!isLoginMode" class="form-row">
-          <div class="form-group">
-            <label for="firstName">
-              <i class="fas fa-user"></i>
-              Prénom
-            </label>
-            <input
-              type="text"
-              id="firstName"
-              [(ngModel)]="formData.firstName"
-              name="firstName"
-              required
-              placeholder="Votre prénom">
-          </div>
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- FORMULAIRE -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <form (ngSubmit)="onSubmit()">
 
-          <div class="form-group">
-            <label for="lastName">
-              <i class="fas fa-user"></i>
-              Nom
-            </label>
-            <input
-              type="text"
-              id="lastName"
-              [(ngModel)]="formData.lastName"
-              name="lastName"
-              required
-              placeholder="Votre nom">
+      <!-- Message d'erreur -->
+      <div class="alert alert-error" *ngIf="errorMessage && !resendSuccess">
+        ❌ {{ errorMessage }}
+      </div>
+
+      <!-- 🆕 MESSAGE DE VÉRIFICATION REQUIS -->
+      <div class="alert alert-warning" *ngIf="needsVerification && !resendSuccess">
+        <div class="warning-content">
+          <div class="warning-icon">📧</div>
+          <div>
+            <h4>Vérification requise</h4>
+            <p>Vous devez vérifier votre email avant de vous connecter.</p>
+            <p class="email-info">Email : <strong>{{ emailToVerify }}</strong></p>
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="email">
-            <i class="fas fa-envelope"></i>
-            Email
-          </label>
-          <input
-            type="email"
-            id="email"
-            [(ngModel)]="formData.email"
-            name="email"
-            required
-            placeholder="votre@email.com">
-        </div>
+        <button
+          type="button"
+          class="btn-resend"
+          (click)="resendVerificationEmail()"
+          [disabled]="resendLoading"
+        >
+          <span *ngIf="!resendLoading">📧 Renvoyer l'email de vérification</span>
+          <span *ngIf="resendLoading">⏳ Envoi en cours...</span>
+        </button>
+      </div>
 
-        <div *ngIf="!isLoginMode" class="form-group">
-          <label for="phone">
-            <i class="fas fa-phone"></i>
-            Téléphone
-          </label>
-          <input
-            type="tel"
-            id="phone"
-            [(ngModel)]="formData.phone"
-            name="phone"
-            required
-            placeholder="+216 XX XXX XXX">
+      <!-- 🆕 MESSAGE DE SUCCÈS RENVOI -->
+      <div class="alert alert-success" *ngIf="resendSuccess">
+        <div class="success-icon">✅</div>
+        <div>
+          <h4>Email renvoyé !</h4>
+          <p>Un nouvel email de vérification a été envoyé à <strong>{{ emailToVerify }}</strong></p>
+          <p class="note">Vérifiez votre boîte de réception (et vos spams)</p>
         </div>
+      </div>
 
-        <div class="form-group">
-          <label for="password">
-            <i class="fas fa-lock"></i>
-            Mot de passe
-          </label>
+      <!-- Email -->
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input
+          type="email"
+          id="email"
+          [(ngModel)]="credentials.email"
+          name="email"
+          placeholder="votre@email.com"
+          required
+          autocomplete="email"
+        />
+      </div>
+
+      <!-- Mot de passe -->
+      <div class="form-group">
+        <label for="password">Mot de passe</label>
+        <div class="input-with-icon">
           <input
-            type="password"
+            [type]="showPassword ? 'text' : 'password'"
             id="password"
-            [(ngModel)]="formData.password"
+            [(ngModel)]="credentials.password"
             name="password"
+            placeholder="••••••••"
             required
-            placeholder="••••••••">
+            autocomplete="current-password"
+          />
+          <button
+            type="button"
+            class="icon-btn"
+            (click)="togglePasswordVisibility()"
+          >
+            {{ showPassword ? '👁️' : '👁️‍🗨️' }}
+          </button>
         </div>
+      </div>
 
-        <div *ngIf="!isLoginMode" class="form-group">
-          <label for="confirmPassword">
-            <i class="fas fa-lock"></i>
-            Confirmer le mot de passe
-          </label>
+      <!-- Options -->
+      <div class="form-options">
+        <label class="checkbox-label">
           <input
-            type="password"
-            id="confirmPassword"
-            [(ngModel)]="formData.confirmPassword"
-            name="confirmPassword"
-            required
-            placeholder="••••••••">
-        </div>
+            type="checkbox"
+            [(ngModel)]="rememberMe"
+            name="rememberMe"
+          />
+          <span>Se souvenir de moi</span>
+        </label>
+        <a href="#" class="link">Mot de passe oublié ?</a>
+      </div>
 
-        <div *ngIf="errorMessage" class="error-message">
-          <i class="fas fa-exclamation-circle"></i>
-          {{ errorMessage }}
-        </div>
+      <!-- Bouton connexion -->
+      <button
+        type="submit"
+        class="btn-submit"
+        [disabled]="loading"
+      >
+        <span *ngIf="!loading">Se connecter</span>
+        <span *ngIf="loading">⏳ Connexion...</span>
+      </button>
 
-        <button type="submit" class="auth-btn" [disabled]="isLoading">
-          <span *ngIf="!isLoading">
-            {{ isLoginMode ? 'Se connecter' : 'Créer un compte' }}
-          </span>
-          <span *ngIf="isLoading" class="loading">
-            <i class="fas fa-spinner fa-spin"></i>
-            Chargement...
-          </span>
-        </button>
+      <!-- Séparateur -->
+      <div class="divider">
+        <span>ou</span>
+      </div>
 
-        <div class="auth-divider">
-          <span>ou</span>
-        </div>
+      <!-- Bouton Google -->
+      <button type="button" class="btn-google">
+        <img src="https://www.google.com/favicon.ico" alt="Google" width="20" height="20">
+        Continuer avec Google
+      </button>
 
-        <button type="button" class="demo-btn" (click)="loginWithDemo()" *ngIf="isLoginMode">
-          <i class="fas fa-user-shield"></i>
-          Connexion démo (Admin)
-        </button>
+      <!-- Lien inscription -->
+      <div class="footer-link">
+        <p>
+          Vous n'avez pas de compte ?
+          <a routerLink="/register" class="link">Créer un compte</a>
+        </p>
+      </div>
+    </form>
 
-        <div class="auth-switch">
-          <p>
-            {{ isLoginMode ? 'Nouveau chez FashionStore ?' : 'Déjà un compte ?' }}
-            <a href="javascript:void(0)" (click)="toggleMode()">
-              {{ isLoginMode ? 'Créer un compte' : 'Se connecter' }}
-            </a>
-          </p>
-        </div>
-
-        <div class="auth-terms">
-          <p>En continuant, vous acceptez nos <a href="#">Conditions d'utilisation</a> et notre <a href="#">Politique de confidentialité</a>.</p>
-        </div>
-      </form>
-    </div>
   </div>
 </div>

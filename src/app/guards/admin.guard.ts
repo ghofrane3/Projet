@@ -1,22 +1,41 @@
-import { Injectable } from '@angular/core';
-import { Router } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, CanActivateFn } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
-@Injectable({
-  providedIn: 'root'
-})
-export class AdminGuard {
-  constructor(
-    private authService: AuthService,
-    private router: Router
-  ) {}
+export const adminGuard: CanActivateFn = (route, state) => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
 
-  canActivate(): boolean {
-    if (this.authService.isAdmin()) {
-      return true;
-    }
+  console.log('🔐 Admin Guard - Vérification...');
+  console.log('📍 Route demandée:', state.url);
 
-    this.router.navigate(['/']);
+  // Vérifier l'authentification
+  const isAuthenticated = authService.isAuthenticated();
+  console.log('👤 Authentifié:', isAuthenticated);
+
+  if (!isAuthenticated) {
+    console.log('❌ Non authentifié, redirection vers /login');
+    router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
     return false;
   }
-}
+
+  // Récupérer l'utilisateur
+  const user = authService.getCurrentUser();
+  console.log('👤 Utilisateur complet:', user);
+  console.log('🔑 Rôle de l\'utilisateur:', user?.role);
+
+  // Vérifier le rôle admin
+  const isAdmin = authService.isAdmin();
+  console.log('👨‍💼 Est Admin:', isAdmin);
+
+  if (!isAdmin) {
+    console.log('❌ Pas admin, redirection vers /');
+    console.log('💡 Pour être admin, le rôle doit être "admin" (actuellement:', user?.role + ')');
+    alert('Accès refusé : vous devez être administrateur pour accéder à cette page');
+    router.navigate(['/']);
+    return false;
+  }
+
+  console.log('✅ Accès admin autorisé');
+  return true;
+};
