@@ -1,57 +1,243 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { CartService } from '../../services/cart.service';
+import {
+  Component, OnInit, OnDestroy,
+  ViewChild, ElementRef
+} from '@angular/core';
+import { CommonModule, DecimalPipe } from '@angular/common';
+import { RouterModule }   from '@angular/router';
+import { FormsModule }    from '@angular/forms';
+import { CartService }    from '../../services/cart.service';
 import { ProductService } from '../../services/product.service';
-import { Product } from '../../models/product.model';
-import { Category } from '../../models/product.model';
+import { Product }        from '../../models/product.model';
+
+interface SlideWord { t: string; italic?: boolean; }
+interface Slide {
+  img: string; tag: string;
+  words: SlideWord[]; sub: string; cta: string;
+}
+
+interface DemoProd {
+  id: number; name: string; cat: string;
+  img: string; img2: string;
+  price: number; was?: number;
+  sizes: string[]; isNew?: boolean; isSale?: boolean; off?: number;
+  fav: boolean;
+  group: string; // for tabs
+  brand?: string;
+}
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, DecimalPipe],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.scss']
-
 })
-export class HomeComponent implements OnInit {
-  // Données depuis le service
-  categories: Category[] = [];
-  featuredProducts: Product[] = [];
-  newArrivals: Product[] = [];
-  discountedProducts: Product[] = [];
+export class HomeComponent implements OnInit, OnDestroy {
 
-  // Données pour le slider
-  slides = [
+  // ─── load
+  ready = false;
+
+  // ─── announcement
+  announceIdx = 0;
+  announcements = [
+    'Livraison gratuite à partir de 99 DT',
+    'Retours faciles sous 30 jours',
+    'Nouveautés chaque semaine',
+    'Paiement sécurisé · SSL'
+  ];
+
+  // ─── hero slider
+  slideIdx = 0;
+  slides: Slide[] = [
     {
-      image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&h=800&fit=crop',
-      title: 'Style Printemps 2026',
-      subtitle: 'Découvrez les dernières tendances mode pour cette saison',
-      badge: 'Nouvelle Collection',
-      link: '/category/homme',
-      buttonText: 'Explorer la collection'
+      img: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=900&q=80',
+      tag: 'Collection Été 2026',
+      words: [
+        { t: 'Dress' },
+        { t: 'with', italic: true },
+        { t: 'intention' }
+      ],
+      sub: 'Des pièces pensées pour durer — matières nobles, silhouettes précises, couleurs intemporelles.',
+      cta: 'Explorer la collection'
     },
     {
-      image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=1200&h=800&fit=crop',
-      title: 'Soldes d\'Été',
-      subtitle: 'Jusqu\'à 70% de réduction sur toute la collection',
-      badge: 'Promotion',
-      link: '/products',
-      buttonText: 'Voir les offres'
+      img: 'https://www.masculin.com/wp-content/uploads/sites/2/2020/07/vetements-homme-scaled.jpg',
+      tag: 'Offres Spéciales · Jusqu\'à 50% OFF',
+      words: [
+        { t: 'Summer' },
+        { t: 'Essentials', italic: true },
+      ],
+      sub: 'Notre sélection estivale soigneusement éditée. Tout ce qu\'il vous faut pour la saison.',
+      cta: 'Voir les offres'
     },
     {
-      image: 'https://images.unsplash.com/photo-1558769132-cb1c458e4222?w=1200&h=800&fit=crop',
-      title: 'Nouveautés Femme',
-      subtitle: 'Découvrez les dernières pièces de la saison',
-      badge: 'Exclusivité',
-      link: '/category/femme',
-      buttonText: 'Découvrir'
+      img: 'https://images.unsplash.com/photo-1502716119720-b23a93e5fe1b?w=1600&h=1000&fit=crop',
+      tag: 'Homme · Nouvelle Saison',
+      words: [
+        { t: 'Effortless' },
+        { t: 'style', italic: true },
+      ],
+      sub: 'Pour l\'homme moderne — coupes nettes, matières respirantes, palette sobre et sophistiquée.',
+      cta: 'Shop Homme'
     }
   ];
 
-  currentSlide = 0;
-  newsletterEmail = '';
+  // ─── marquee
+  marqueeItems = [
+    'Free Shipping Over 99 DT',
+    'New Arrivals Every Week',
+    'Premium Quality',
+    'Easy Returns',
+    'Secure Checkout',
+    'Handpicked Selection',
+    'Sustainable Fashion',
+    'Exclusive Members Offers'
+  ];
+
+  // ─── categories
+  cats = [
+    {
+      name: 'Femme',
+      slug: 'femme',
+      img: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=900&h=1200&fit=crop&crop=top'
+    },
+    {
+      name: 'Homme',
+      slug: 'homme',
+      img: 'https://images.unsplash.com/photo-1502716119720-b23a93e5fe1b?w=600&h=400&fit=crop'
+    },
+    {
+      name: 'Accessoires',
+      slug: 'accessoire',
+      img: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&h=400&fit=crop'
+    },
+    {
+      name: 'Enfant',
+      slug: 'enfant',
+      img: 'https://images.unsplash.com/photo-1543087903-1ac2364fd7aa?w=600&h=400&fit=crop'
+    },
+    {
+      name: 'Sport',
+      slug: 'sport',
+      img: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=600&h=400&fit=crop'
+    }
+  ];
+
+  // ─── products
+  tab  = 'all';
+  tabs = [
+    { id: 'all',   label: 'Tout'       },
+    { id: 'femme', label: 'Femme'      },
+    { id: 'homme', label: 'Homme'      },
+    { id: 'new',   label: 'Nouveautés' },
+    { id: 'sale',  label: 'Soldes'     },
+  ];
+
+  private allProds: DemoProd[] = [
+    {
+      id: 1, name: 'Robe Lin Naturel',       cat: 'Femme',
+      group: 'femme', isNew: true,
+      img:  'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=500&h=660&fit=crop',
+      img2: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=500&h=660&fit=crop',
+      price: 89.90, sizes: ['XS','S','M','L'], fav: false
+    },
+    {
+      id: 2, name: 'Blazer Structuré Écru',  cat: 'Femme',
+      group: 'femme', isSale: true, off: 30,
+      img:  'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=500&h=660&fit=crop',
+      img2: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=500&h=660&fit=crop',
+      price: 99.90, was: 142.00, sizes: ['XS','S','M','L','XL'], fav: false
+    },
+    {
+      id: 3, name: 'Chemise Oxford Slim',    cat: 'Homme',
+      group: 'homme', isNew: true,
+      img:  'https://images.unsplash.com/photo-1602810316693-3667c854239a?w=500&h=660&fit=crop',
+      img2: 'https://images.unsplash.com/photo-1594938298603-c8148c4b400b?w=500&h=660&fit=crop',
+      price: 65.00, sizes: ['S','M','L','XL','XXL'], fav: false
+    },
+    {
+      id: 4, name: 'Jean Fuselé Brut',       cat: 'Homme',
+      group: 'homme',
+      img:  'https://images.unsplash.com/photo-1542272604-787c3835535d?w=500&h=660&fit=crop',
+      img2: 'https://images.unsplash.com/photo-1613677135043-a2512fbf49fa?w=500&h=660&fit=crop',
+      price: 79.90, sizes: ['30','32','34','36','38'], fav: false
+    },
+    {
+      id: 5, name: 'Sac Cuir Naturel',       cat: 'Accessoires',
+      group: 'femme', isSale: true, off: 25,
+      img:  'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=500&h=660&fit=crop',
+      img2: 'https://images.unsplash.com/photo-1524498250077-390f9e378fc0?w=500&h=660&fit=crop',
+      price: 119.00, was: 159.00, sizes: ['Unique'], fav: false
+    },
+    {
+      id: 6, name: 'Robe Midi Satinée',      cat: 'Femme',
+      group: 'new', isNew: true,
+      img:  'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=500&h=660&fit=crop',
+      img2: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=500&h=660&fit=crop',
+      price: 109.00, sizes: ['XS','S','M','L'], fav: false
+    },
+    {
+      id: 7, name: 'Polo Piqué Premium',     cat: 'Homme',
+      group: 'new', isNew: true,
+      img:  'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?w=500&h=660&fit=crop',
+      img2: 'https://images.unsplash.com/photo-1551232864-3f0890e580d9?w=500&h=660&fit=crop',
+      price: 55.00, sizes: ['S','M','L','XL'], fav: false
+    },
+    {
+      id: 8, name: 'Manteau Camel Long',     cat: 'Femme',
+      group: 'sale', isSale: true, off: 40,
+      img:  'https://images.unsplash.com/photo-1544966503-7cc5ac882d5d?w=500&h=660&fit=crop',
+      img2: 'https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=500&h=660&fit=crop',
+      price: 179.00, was: 299.00, sizes: ['XS','S','M','L'], fav: false
+    },
+  ];
+
+  shown: DemoProd[] = [];
+
+  // ─── new arrivals
+  newArr: DemoProd[] = [];
+
+  // ─── brands
+  brands = ['Totême','A.P.C.','Arket','COS','Sandro',
+            'Maje','Jacquemus','& Other Stories',
+            'Totême','A.P.C.','Arket','COS','Sandro',
+            'Maje','Jacquemus','& Other Stories'];
+
+  // ─── editorial feats
+  editFeats = [
+    { icon: '🚚', text: 'Livraison gratuite dès 99 DT · Express 24h' },
+    { icon: '↩️', text: '30 jours pour changer d\'avis, sans frais' },
+    { icon: '🌱', text: 'Matières sélectionnées & production responsable' },
+  ];
+
+  // ─── reviews
+  reviews = [
+    {
+      name: 'Amira B.', prod: 'Robe Lin Naturel',
+      text: 'Qualité irréprochable, coupe parfaite. Le tissu est doux et la robe tombe exactement comme prévu. Je recommande vivement !'
+    },
+    {
+      name: 'Karim T.', prod: 'Chemise Oxford Slim',
+      text: 'Enfin une chemise qui tient ses promesses. Tissu de qualité, coupe slim qui reste confortable. Je reviendrai très vite.'
+    },
+    {
+      name: 'Sana M.', prod: 'Sac Cuir Naturel',
+      text: 'Le sac est encore plus beau en vrai. Le cuir est magnifique, les finitions soignées. Livraison rapide, emballage soigné.'
+    }
+  ];
+
+  // ─── newsletter
+  email   = '';
+  nlPerks = ['10% sur votre 1ère commande', 'Accès aux ventes privées', 'Conseils style exclusifs'];
+
+  // ─── toast
+  toastOn  = false;
+  toastMsg = '';
+
+  // ─── timers
+  private _slideTimer: any;
+  private _announceTimer: any;
+  private _toastTimer: any;
 
   constructor(
     private cartService: CartService,
@@ -59,118 +245,117 @@ export class HomeComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // Récupérer les données depuis les services
-    this.categories = this.productService.getCategories();
-    this.featuredProducts = this.productService.getFeaturedProducts();
-    this.newArrivals = this.productService.getNewArrivals();
-    this.discountedProducts = this.productService.getDiscountedProducts();
+    setTimeout(() => (this.ready = true), 60);
 
-    // Démarrer le slider automatique
-    this.startAutoSlide();
+    // Load products from service if available
+    this.loadProducts();
+
+    // Sliders
+    this.startSlide();
+    this.startAnnounce();
   }
 
-  // Méthodes pour le slider
-  startAutoSlide(): void {
-    setInterval(() => {
-      this.nextSlide();
-    }, 5000);
+  ngOnDestroy(): void {
+    clearInterval(this._slideTimer);
+    clearInterval(this._announceTimer);
+    clearTimeout(this._toastTimer);
   }
 
-  nextSlide(): void {
-    this.currentSlide = (this.currentSlide + 1) % this.slides.length;
+  // ─── products ─────────────────────────────────
+  private loadProducts(): void {
+    try {
+      const ps = this.productService.getFeaturedProducts?.() as any[] || [];
+      if (ps.length > 0) {
+        this.allProds = ps.slice(0, 8).map((p: any, i: number) => ({
+          id: p.id,
+          name: p.name,
+          cat: p.category,
+          group: p.category,
+          img:  p.images?.[0] || this.allProds[i % this.allProds.length]?.img,
+          img2: p.images?.[1] || this.allProds[i % this.allProds.length]?.img2,
+          price: p.discountPrice || p.price,
+          was:   p.discountPrice ? p.price : undefined,
+          sizes: p.sizes || ['S','M','L'],
+          isNew:  p.tags?.includes('nouveau'),
+          isSale: !!p.discountPrice,
+          off:   p.discountPrice
+            ? Math.round(((p.price - p.discountPrice) / p.price) * 100)
+            : 0,
+          fav: false
+        }));
+      }
+    } catch { /* keep demo */ }
+
+    this.newArr = this.allProds.filter(p => p.isNew).slice(0, 4);
+    if (!this.newArr.length) this.newArr = this.allProds.slice(0, 4);
+    this.setTab('all');
   }
 
-  prevSlide(): void {
-    this.currentSlide = (this.currentSlide - 1 + this.slides.length) % this.slides.length;
+  setTab(id: string): void {
+    this.tab = id;
+    this.shown = id === 'all'  ? this.allProds :
+                 id === 'new'  ? this.allProds.filter(p => p.isNew) :
+                 id === 'sale' ? this.allProds.filter(p => p.isSale) :
+                                 this.allProds.filter(p => p.group === id);
+    if (!this.shown.length) this.shown = this.allProds;
   }
 
-  goToSlide(index: number): void {
-    this.currentSlide = index;
+  // ─── hero ──────────────────────────────────────
+  private startSlide(): void {
+    this._slideTimer = setInterval(() => {
+      this.slideIdx = (this.slideIdx + 1) % this.slides.length;
+    }, 6000);
   }
 
-  // Méthodes pour les produits
-  getDiscountPercentage(product: Product): number {
-    if (!product.discountPrice) return 0;
-    const discount = ((product.price - product.discountPrice) / product.price) * 100;
-    return Math.round(discount);
+  goSlide(i: number): void {
+    this.slideIdx = i;
+    clearInterval(this._slideTimer);
+    this._slideTimer = setInterval(() => {
+      this.slideIdx = (this.slideIdx + 1) % this.slides.length;
+    }, 6000);
   }
 
-  addToCart(product: Product): void {
-    // Ajouter la taille et la couleur par défaut
-    const cartItem = {
-      product: product,
-      quantity: 1,
-      selectedSize: product.sizes && product.sizes.length > 0 ? product.sizes[0] : 'Unique',
-      selectedColor: product.colors && product.colors.length > 0 ? product.colors[0] : 'Standard'
-    };
-
-    this.cartService.addToCart(product, 1, cartItem.selectedSize, cartItem.selectedColor);
-    this.showNotification(`${product.name} ajouté au panier`);
+  // ─── announce ──────────────────────────────────
+  private startAnnounce(): void {
+    this._announceTimer = setInterval(() => {
+      this.announceIdx = (this.announceIdx + 1) % this.announcements.length;
+    }, 4000);
   }
 
-  addToWishlist(product: Product): void {
-    // Logique pour ajouter à la wishlist
-    this.showNotification(`${product.name} ajouté à la liste de souhaits`);
+  // ─── actions ───────────────────────────────────
+  cart(p: DemoProd): void {
+    try {
+      this.cartService.addToCart(
+        { id: p.id, name: p.name, price: p.price } as Product,
+        1,
+        p.sizes[0] || 'Unique',
+        'Standard'
+      );
+    } catch {}
+    this.toast(`"${p.name}" ajouté au panier`);
   }
 
-  quickView(product: Product): void {
-    // Logique pour la vue rapide (modal)
-    console.log('Vue rapide:', product);
-    // Ici vous pourriez ouvrir un modal avec les détails du produit
+  wish(p: DemoProd): void {
+    p.fav = !p.fav;
+    this.toast(p.fav ? `Sauvegardé dans vos favoris` : `Retiré des favoris`);
   }
 
-  // Méthode pour afficher les couleurs disponibles
-  getColorStyles(color: string): any {
-    // Convertir les noms de couleurs en codes hex si nécessaire
-    const colorMap: { [key: string]: string } = {
-      'Bleu': '#2196F3',
-      'Blanc': '#FFFFFF',
-      'Noir': '#000000',
-      'Rose': '#E91E63',
-      'Jaune': '#FFEB3B',
-      'Beige': '#F5F5DC',
-      'Kaki': '#8B4513',
-      'Bordeaux': '#800000',
-      'Vert': '#4CAF50',
-      'Rouge': '#F44336',
-      'Gris': '#9E9E9E',
-      'Marron': '#795548',
-      'Marine': '#3F51B5',
-      'Doré': '#FFD700',
-      'Argenté': '#C0C0C0'
-    };
-
-    return {
-      'background-color': colorMap[color] || color,
-      'border': color === 'Blanc' ? '1px solid #ddd' : 'none'
-    };
-  }
-
-  // Méthode pour l'inscription newsletter
-  subscribeNewsletter(): void {
-    if (this.validateEmail(this.newsletterEmail)) {
-      this.showNotification('Merci pour votre inscription à la newsletter !');
-      this.newsletterEmail = '';
+  subscribe(e: Event): void {
+    e.preventDefault();
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (re.test(this.email)) {
+      this.toast('Inscription confirmée — bienvenue !');
+      this.email = '';
     } else {
-      this.showNotification('Veuillez entrer un email valide');
+      this.toast('Veuillez saisir une adresse e-mail valide.');
     }
   }
 
-  // Validation email
-  private validateEmail(email: string): boolean {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
+  // ─── toast ─────────────────────────────────────
+  private toast(msg: string): void {
+    this.toastMsg = msg;
+    this.toastOn  = true;
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => (this.toastOn = false), 3000);
   }
-
-  // Méthode pour afficher les notifications
-  private showNotification(message: string): void {
-    // Vous pouvez implémenter un service de notification ou utiliser un toast
-    alert(message); // Solution simple pour l'instant
-  }
-
-  // Méthode pour obtenir les produits populaires (les mieux notés)
-  getPopularProducts(): Product[] {
-    return [...this.featuredProducts].sort((a, b) => b.rating - a.rating);
-  }
-
 }

@@ -1,52 +1,151 @@
 <footer class="footer">
-  <div class="container">
-    <div class="footer-content">
-      <div class="footer-section">
-        <h3>Fashion Store</h3>
-        <p>Votre boutique en ligne de vêtements tendance à prix abordables.</p>
-        <div class="social-links">
-          <a href="#">📘</a>
-          <a href="#">📸</a>
-          <a href="#">🐦</a>
-          <a href="#">📷</a>
+
+  <!-- FOOTER MAIN -->
+  <div class="footer__main">
+    <div class="footer__inner">
+
+      <!-- Brand column -->
+      <div class="footer__brand">
+        <a routerLink="/" class="footer__logo">
+          <span class="footer__logo-word">Fashion</span>
+          <span class="footer__logo-sep"></span>
+          <span class="footer__logo-sub">Store</span>
+        </a>
+        <p class="footer__brand-desc">
+          Une sélection soigneusement éditée de pièces
+          intemporelles — qualité premium, style durable.
+        </p>
+        <div class="footer__social">
+          <a href="#" class="footer__social-link" aria-label="Instagram">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+              <circle cx="12" cy="12" r="4"/>
+              <circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"/>
+            </svg>
+          </a>
+          <a href="#" class="footer__social-link" aria-label="Facebook">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+            </svg>
+          </a>
+          <a href="#" class="footer__social-link" aria-label="Pinterest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.65 7.86 6.39 9.29-.09-.78-.17-1.98.04-2.83.18-.77 1.22-5.17 1.22-5.17s-.31-.62-.31-1.54c0-1.45.84-2.53 1.88-2.53.89 0 1.32.67 1.32 1.47 0 .9-.57 2.24-.87 3.48-.25 1.04.52 1.88 1.54 1.88 1.85 0 3.09-2.38 3.09-5.19 0-2.15-1.45-3.74-4.07-3.74-2.96 0-4.79 2.21-4.79 4.66 0 .84.24 1.43.62 1.88.17.2.19.28.13.51-.04.17-.14.57-.18.73-.06.23-.24.31-.45.23-1.3-.53-1.9-1.96-1.9-3.56 0-2.64 2.22-5.8 6.61-5.8 3.55 0 5.87 2.57 5.87 5.33 0 3.65-2.02 6.36-5 6.36-.99 0-1.94-.54-2.26-1.14l-.65 2.48c-.23.89-.85 2-1.26 2.67.94.29 1.93.44 2.95.44 5.52 0 10-4.48 10-10S17.52 2 12 2z"/>
+            </svg>
+          </a>
+          <a href="#" class="footer__social-link" aria-label="TikTok">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.53V6.77a4.85 4.85 0 0 1-1.01-.08z"/>
+            </svg>
+          </a>
         </div>
       </div>
 
-      <div class="footer-section">
-        <h4>Liens rapides</h4>
-        <ul>
-          <li><a routerLink="/">Accueil</a></li>
-          <li><a routerLink="/products">Boutique</a></li>
-          <li><a routerLink="/about">À propos</a></li>
-          <li><a routerLink="/contact">Contact</a></li>
+      <!-- Shop column -->
+      <div class="footer__col">
+        <h4 class="footer__col-title">Boutique</h4>
+        <ul class="footer__links">
+          <li><a routerLink="/category/femme"      class="footer__link">Femme</a></li>
+          <li><a routerLink="/category/homme"      class="footer__link">Homme</a></li>
+          <li><a routerLink="/category/enfant"     class="footer__link">Enfant</a></li>
+          <li><a routerLink="/category/accessoire" class="footer__link">Accessoires</a></li>
+          <li><a routerLink="/new"                 class="footer__link">Nouveautés</a></li>
+          <li><a routerLink="/sale"                class="footer__link footer__link--accent">Soldes</a></li>
         </ul>
       </div>
 
-      <div class="footer-section">
-        <h4>Catégories</h4>
-        <ul>
-          <li><a routerLink="/category/t-shirts">T-shirts</a></li>
-          <li><a routerLink="/category/chemises">Chemises</a></li>
-          <li><a routerLink="/category/pantalons">Pantalons</a></li>
-          <li><a routerLink="/category/robes">Robes</a></li>
+      <!-- Help column -->
+      <div class="footer__col">
+        <h4 class="footer__col-title">Aide</h4>
+        <ul class="footer__links">
+          <li><a routerLink="/order-confirmation" class="footer__link">Suivi de commande</a></li>
+          <li><a href="#" class="footer__link">Livraison & retours</a></li>
+          <li><a href="#" class="footer__link">Guide des tailles</a></li>
+          <li><a href="#" class="footer__link">FAQ</a></li>
+          <li><a href="#" class="footer__link">Contact</a></li>
         </ul>
       </div>
 
-      <div class="footer-section">
-        <h4>Contact</h4>
-        <p>📧 contactfashionstore.com</p>
-        <p>📞 01 23 45 67 89</p>
-        <p>📍 kairouan, Tunisie</p>
-      </div>
-    </div>
+      <!-- About column -->
+      <div class="footer__col">
+        <h4 class="footer__col-title">À propos</h4>
+        <ul class="footer__links">
+          <li><a href="#" class="footer__link">Notre histoire</a></li>
+          <li><a href="#" class="footer__link">Nos engagements</a></li>
+          <li><a href="#" class="footer__link">Programme fidélité</a></li>
+          <li><a href="#" class="footer__link">Presse & médias</a></li>
+        </ul>
 
-    <div class="footer-bottom">
-      <p>&copy; {{ currentYear }} Fashion Store. Tous droits réservés.</p>
-      <div class="footer-links">
-        <a href="#">Mentions légales</a>
-        <a href="#">Politique de confidentialité</a>
-        <a href="#">CGV</a>
+        <!-- Contact info -->
+        <div class="footer__contact">
+          <a href="mailto:contact@fashionstore.tn" class="footer__contact-item">
+            contactfashionstore.tn
+          </a>
+          <a href="tel:+21671234567" class="footer__contact-item">
+            +216 71 234 567
+          </a>
+          <span class="footer__contact-item footer__contact-item--muted">
+            Kairouan, Tunisie
+          </span>
+        </div>
       </div>
+
     </div>
   </div>
+
+  <!-- DIVIDER -->
+  <div class="footer__divider"></div>
+
+  <!-- FOOTER BOTTOM -->
+  <div class="footer__bottom">
+    <div class="footer__bottom-inner">
+
+      <p class="footer__copy">
+        © {{ year }} Fashion Store · Tous droits réservés
+      </p>
+
+      <div class="footer__legal">
+        <a href="#" class="footer__legal-link">Mentions légales</a>
+        <a href="#" class="footer__legal-link">Confidentialité</a>
+        <a href="#" class="footer__legal-link">CGV</a>
+      </div>
+
+      <div class="footer__payment">
+        <!-- Visa -->
+        <span class="footer__pay-icon" title="Visa">
+          <svg viewBox="0 0 38 24" fill="none">
+            <rect width="38" height="24" rx="3" fill="#f7f7f7" stroke="#ddd" stroke-width=".5"/>
+            <text x="7" y="16" font-family="sans-serif" font-size="9" font-weight="700" fill="#1A1F71">VISA</text>
+          </svg>
+        </span>
+        <!-- Mastercard -->
+        <span class="footer__pay-icon" title="Mastercard">
+          <svg viewBox="0 0 38 24" fill="none">
+            <rect width="38" height="24" rx="3" fill="#f7f7f7" stroke="#ddd" stroke-width=".5"/>
+            <circle cx="15" cy="12" r="6" fill="#EB001B" opacity=".9"/>
+            <circle cx="23" cy="12" r="6" fill="#F79E1B" opacity=".9"/>
+            <ellipse cx="19" cy="12" rx="3" ry="5.8" fill="#FF5F00" opacity=".85"/>
+          </svg>
+        </span>
+        <!-- PayPal -->
+        <span class="footer__pay-icon" title="PayPal">
+          <svg viewBox="0 0 38 24" fill="none">
+            <rect width="38" height="24" rx="3" fill="#f7f7f7" stroke="#ddd" stroke-width=".5"/>
+            <text x="6" y="16" font-family="sans-serif" font-size="7.5" font-weight="700" fill="#003087">Pay</text>
+            <text x="18.5" y="16" font-family="sans-serif" font-size="7.5" font-weight="700" fill="#009CDE">Pal</text>
+          </svg>
+        </span>
+        <!-- Cash -->
+        <span class="footer__pay-icon" title="Paiement à la livraison">
+          <svg viewBox="0 0 38 24" fill="none">
+            <rect width="38" height="24" rx="3" fill="#f7f7f7" stroke="#ddd" stroke-width=".5"/>
+            <text x="4" y="15" font-family="sans-serif" font-size="6" font-weight="600" fill="#555">Cash</text>
+            <text x="4" y="21" font-family="sans-serif" font-size="5" fill="#999">Livraison</text>
+          </svg>
+        </span>
+      </div>
+
+    </div>
+  </div>
+
 </footer>

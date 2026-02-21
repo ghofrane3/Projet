@@ -1,168 +1,288 @@
-<div class="home-page">
-  <!-- Hero Section -->
+<div class="page" [class.page--in]="ready">
+
+  <!-- ANNOUNCEMENT BAR -->
+  <div class="announce">
+    <span *ngFor="let m of announcements; let i = index"
+          class="announce__msg"
+          [class.announce__msg--active]="announceIdx === i">
+      {{ m }}
+    </span>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       HERO
+  ═══════════════════════════════════════ -->
   <section class="hero">
-    <div class="hero-slider">
-      <div class="slide active">
-        <div class="slide-content">
-          <span class="slide-badge">Nouvelle Collection</span>
-          <h1 class="hero-title">Style Printemps 2026</h1>
-          <p class="hero-subtitle">Découvrez les dernières tendances mode pour cette saison</p>
-          <button routerLink="/category/homme" class="hero-btn">Explorer la collection</button>
-        </div>
-        <div class="slide-image">
-          <img src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&h=800&fit=crop" alt="Collection Printemps">
-        </div>
+    <div class="hero__media">
+      <div *ngFor="let s of slides; let i = index"
+           class="hero__slide"
+           [class.hero__slide--on]="slideIdx === i">
+        <img [src]="s.img" [alt]="s.tag" class="hero__img">
+      </div>
+      <div class="hero__dim"></div>
+    </div>
+
+    <div class="hero__body">
+      <p class="hero__overtitle">{{ slides[slideIdx].tag }}</p>
+      <h1 class="hero__title">
+        <span *ngFor="let w of slides[slideIdx].words; let wi = index"
+              class="hero__word"
+              [class.hero__word--italic]="w.italic"
+              [style.animation-delay]="(wi * 0.09 + 0.05) + 's'">
+          {{ w.t }}
+        </span>
+      </h1>
+      <p class="hero__sub">{{ slides[slideIdx].sub }}</p>
+      <div class="hero__ctas">
+        <a routerLink="/products" class="btn-primary">{{ slides[slideIdx].cta }}</a>
+        <a routerLink="/new"      class="btn-text">Nouveautés <span class="arrow">→</span></a>
       </div>
     </div>
 
-    <div class="hero-stats">
-      <div class="stat">
-        <span class="stat-number">10K+</span>
-        <span class="stat-label">Clients satisfaits</span>
-      </div>
-      <div class="stat">
-        <span class="stat-number">500+</span>
-        <span class="stat-label">Nouveaux produits</span>
-      </div>
-      <div class="stat">
-        <span class="stat-number">24h</span>
-        <span class="stat-label">Livraison express</span>
-      </div>
-      <div class="stat">
-        <span class="stat-number">100%</span>
-        <span class="stat-label">Satisfaction garantie</span>
-      </div>
+    <!-- Nav dots -->
+    <div class="hero__dots">
+      <button *ngFor="let s of slides; let i = index"
+              class="hero__dot"
+              [class.hero__dot--on]="slideIdx === i"
+              (click)="goSlide(i)">
+      </button>
     </div>
-  </section>
 
-  <!-- Categories -->
-  <section class="categories-section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="section-title">Shop by Category</h2>
-        <p class="section-subtitle">Parcourez nos collections exclusives</p>
-      </div>
-      <div class="categories-grid">
-        <div *ngFor="let category of categories"
-             class="category-card"
-             [style.background]="category.gradient"
-             routerLink="/category/{{category.name.toLowerCase()}}">
-          <div class="category-content">
-            <span class="category-icon">{{ category.icon }}</span>
-            <h3>{{ category.name }}</h3>
-            <p>{{ category.count }} produits</p>
-            <span class="category-arrow">→</span>
-          </div>
-        </div>
-      </div>
+    <!-- Scroll -->
+    <div class="hero__scroll">
+      <div class="hero__scroll-bar"></div>
+      <span>SCROLL</span>
+    </div>
+
+    <!-- Slide counter -->
+    <div class="hero__counter">
+      <span class="hero__counter-cur">0{{ slideIdx + 1 }}</span>
+      <span class="hero__counter-sep">/</span>
+      <span class="hero__counter-tot">0{{ slides.length }}</span>
     </div>
   </section>
 
-  <!-- Featured Products -->
-  <section class="featured-section">
-    <div class="container">
-      <div class="section-header">
-        <div>
-          <h2 class="section-title">Produits Populaires</h2>
-          <p class="section-subtitle">Découvrez nos best-sellers</p>
+  <!-- ═══════════════════════════════════════
+       MARQUEE
+  ═══════════════════════════════════════ -->
+  <div class="marquee">
+    <div class="marquee__track">
+      <span *ngFor="let t of marqueeItems" class="marquee__item">
+        {{ t }}&nbsp;&nbsp;&nbsp;<span class="marquee__dot">—</span>&nbsp;&nbsp;&nbsp;
+      </span>
+      <span *ngFor="let t of marqueeItems" class="marquee__item" aria-hidden="true">
+        {{ t }}&nbsp;&nbsp;&nbsp;<span class="marquee__dot">—</span>&nbsp;&nbsp;&nbsp;
+      </span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       COLLECTIONS GRID
+  ═══════════════════════════════════════ -->
+  <section class="collections">
+    <div class="collections__head">
+      <p class="label">Collections</p>
+      <h2 class="h2">Nos Univers</h2>
+    </div>
+    <div class="collections__grid">
+      <div *ngFor="let c of cats; let i = index"
+           class="col-card"
+           [class.col-card--tall]="i === 0"
+           routerLink="/category/{{ c.slug }}">
+        <div class="col-card__img-box">
+          <img [src]="c.img" [alt]="c.name" loading="lazy">
         </div>
-        <a routerLink="/products" class="view-all-btn">Voir tout →</a>
-      </div>
-      <div class="products-grid">
-        <div *ngFor="let product of featuredProducts" class="product-card">
-          <div class="product-badges">
-            <span *ngIf="product.discountPrice" class="badge discount">
-              -{{ getDiscountPercentage(product) }}%
-            </span>
-            <span *ngIf="product.tags.includes('nouveau')" class="badge new">
-              Nouveau
-            </span>
-          </div>
-          <div class="product-image" routerLink="/product/{{product.id}}">
-            <img [src]="product.images[0]" [alt]="product.name">
-            <div class="product-overlay">
-              <button class="quick-view" (click)="$event.stopPropagation(); quickView(product)">👁️ Voir</button>
-              <button class="add-to-wishlist">❤️</button>
-            </div>
-          </div>
-          <div class="product-info">
-            <span class="product-category">{{ product.category | uppercase }}</span>
-            <h3 class="product-name">{{ product.name }}</h3>
-            <div class="product-price">
-              <span *ngIf="product.discountPrice" class="old-price">
-                {{ product.price.toFixed(2) }} DT
-              </span>
-              <span class="current-price">
-                {{ (product.discountPrice || product.price).toFixed(2) }} DT
-              </span>
-            </div>
-            <div class="product-actions">
-              <button class="add-to-cart-btn" (click)="addToCart(product)">
-                🛒 Ajouter
-              </button>
-              <div class="rating">
-                ⭐ {{ product.rating }}
-                <span class="reviews">({{ product.reviews }})</span>
-              </div>
-            </div>
-          </div>
+        <div class="col-card__foot">
+          <span class="col-card__name">{{ c.name }}</span>
+          <span class="col-card__arrow">→</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Banner -->
-  <section class="promo-banner">
-    <div class="container">
-      <div class="banner-content">
-        <div class="banner-text">
-          <span class="banner-subtitle">Promotion spéciale</span>
-          <h2 class="banner-title">Jusqu'à 50% de réduction</h2>
-          <p class="banner-description">Sur toute la collection d'été</p>
-          <button routerLink="/sale" class="banner-btn">Profiter des offres</button>
+  <!-- ═══════════════════════════════════════
+       FEATURED PRODUCTS
+  ═══════════════════════════════════════ -->
+  <section class="products">
+    <div class="products__head">
+      <div>
+        <p class="label">Sélection</p>
+        <h2 class="h2">Bestsellers</h2>
+      </div>
+      <div class="products__tabs">
+        <button *ngFor="let t of tabs"
+                class="tab"
+                [class.tab--on]="tab === t.id"
+                (click)="setTab(t.id)">{{ t.label }}</button>
+      </div>
+      <a routerLink="/products" class="btn-text">Voir tout <span class="arrow">→</span></a>
+    </div>
+
+    <div class="products__grid">
+      <article *ngFor="let p of shown; let i = index"
+               class="pcard"
+               [style.--i]="i">
+        <div class="pcard__img-box">
+          <a routerLink="/product/{{ p.id }}">
+            <img [src]="p.img"      [alt]="p.name" class="pcard__img"  loading="lazy">
+            <img [src]="p.img2"     [alt]="p.name" class="pcard__img2" loading="lazy">
+          </a>
+          <div class="pcard__over">
+            <button class="pcard__wish"
+                    (click)="wish(p); $event.stopPropagation()"
+                    [class.pcard__wish--on]="p.fav">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </button>
+          </div>
+          <div class="pcard__labels">
+            <span *ngIf="p.isNew"  class="pcard__label">Nouveau</span>
+            <span *ngIf="p.isSale" class="pcard__label pcard__label--sale">-{{ p.off }}%</span>
+          </div>
+          <div class="pcard__sizes-bar">
+            <span *ngFor="let s of p.sizes.slice(0,4)" class="pcard__size">{{ s }}</span>
+          </div>
         </div>
-        <div class="banner-image">
-          <img src="https://images.unsplash.com/photo-1445205170230-053b83016050?w=600&h=400&fit=crop" alt="Promotion">
+        <footer class="pcard__foot">
+          <div class="pcard__meta">
+            <h4 class="pcard__name">{{ p.name }}</h4>
+            <p class="pcard__cat">{{ p.cat }}</p>
+          </div>
+          <div class="pcard__price-block">
+            <span *ngIf="p.was" class="pcard__was">{{ p.was | number:'1.2-2' }} DT</span>
+            <span class="pcard__price">{{ p.price | number:'1.2-2' }} DT</span>
+          </div>
+          <button class="pcard__add" (click)="cart(p)">+ Panier</button>
+        </footer>
+      </article>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════
+       EDITORIAL SPLIT
+  ═══════════════════════════════════════ -->
+  <section class="editorial">
+    <div class="editorial__img-side">
+      <div class="editorial__main-img">
+        <img src="https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&h=1050&fit=crop&crop=top" alt="Editorial">
+      </div>
+      <div class="editorial__accent-img">
+        <img src="https://images.unsplash.com/photo-1445205170230-053b83016050?w=500&h=400&fit=crop" alt="Editorial">
+      </div>
+      <div class="editorial__pill">50% OFF</div>
+    </div>
+
+    <div class="editorial__copy">
+      <p class="label">Offre Exclusive</p>
+      <h2 class="h2">Summer<br><em>Essentials</em></h2>
+      <p class="editorial__desc">
+        Notre sélection estivale repensée — des pièces intemporelles
+        taillées pour la saison. Matières légères, silhouettes précises.
+      </p>
+      <ul class="editorial__list">
+        <li *ngFor="let f of editFeats">
+          <span class="editorial__icon">{{ f.icon }}</span>
+          <span>{{ f.text }}</span>
+        </li>
+      </ul>
+      <a routerLink="/sale" class="btn-primary">Découvrir la Collection</a>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════
+       NEW ARRIVALS — ROW
+  ═══════════════════════════════════════ -->
+  <section class="arrivals">
+    <div class="arrivals__head">
+      <p class="label">Vient d'arriver</p>
+      <h2 class="h2">Just Dropped</h2>
+    </div>
+    <div class="arrivals__row">
+      <div *ngFor="let p of newArr; let i = index"
+           class="arr-card"
+           [class.arr-card--featured]="i === 0"
+           routerLink="/product/{{ p.id }}">
+        <div class="arr-card__img">
+          <img [src]="p.img" [alt]="p.name" loading="lazy">
+          <div class="arr-card__badge">NEW</div>
+          <div class="arr-card__hover-cta">Voir le produit →</div>
+        </div>
+        <div class="arr-card__info">
+          <span class="arr-card__name">{{ p.name }}</span>
+          <span class="arr-card__price">{{ p.price | number:'1.2-2' }} DT</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- New Arrivals -->
-  <section class="new-arrivals">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="section-title">Nouveautés</h2>
-        <p class="section-subtitle">Dernières arrivées en boutique</p>
-      </div>
-      <div class="arrivals-grid">
-        <div class="arrival-card" *ngFor="let product of newArrivals">
-          <div class="arrival-image">
-            <img [src]="product.images[0]" [alt]="product.name">
-            <div class="arrival-badge">Nouveau</div>
-          </div>
-          <div class="arrival-info">
-            <h3>{{ product.name }}</h3>
-            <p>{{ product.price.toFixed(2) }} DT</p>
+  <!-- ═══════════════════════════════════════
+       BRAND RAIL
+  ═══════════════════════════════════════ -->
+  <div class="brand-rail">
+    <span class="brand-rail__label">Nos marques</span>
+    <div class="brand-rail__track">
+      <span *ngFor="let b of brands" class="brand-rail__name">{{ b }}</span>
+      <span *ngFor="let b of brands" class="brand-rail__name" aria-hidden="true">{{ b }}</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       TESTIMONIALS
+  ═══════════════════════════════════════ -->
+  <section class="reviews">
+    <div class="reviews__head">
+      <p class="label">Avis clients</p>
+      <h2 class="h2">Ils nous font confiance</h2>
+    </div>
+    <div class="reviews__grid">
+      <div *ngFor="let r of reviews" class="rev-card">
+        <div class="rev-card__stars">
+          <svg *ngFor="let _ of [1,2,3,4,5]" viewBox="0 0 24 24" fill="#1a1a1a" stroke="none">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+        </div>
+        <p class="rev-card__text">{{ r.text }}</p>
+        <div class="rev-card__author">
+          <div class="rev-card__avatar">{{ r.name.charAt(0) }}</div>
+          <div>
+            <strong>{{ r.name }}</strong>
+            <span>{{ r.prod }}</span>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Newsletter -->
+  <!-- ═══════════════════════════════════════
+       NEWSLETTER
+  ═══════════════════════════════════════ -->
   <section class="newsletter">
-    <div class="container">
-      <div class="newsletter-content">
-        <div class="newsletter-text">
-          <h2>Restez informé</h2>
-          <p>Abonnez-vous à notre newsletter pour recevoir les dernières nouveautés et offres exclusives</p>
+    <div class="newsletter__inner">
+      <div class="newsletter__copy">
+        <p class="label label--lt">Newsletter</p>
+        <h2 class="h2 h2--lt">Restez<br><em>inspiré·e</em></h2>
+        <p class="newsletter__desc">Nouveautés, offres exclusives et conseils style — en avant-première dans votre boîte mail.</p>
+      </div>
+      <div class="newsletter__form-side">
+        <div class="newsletter__perks">
+          <span *ngFor="let p of nlPerks">{{ p }}</span>
         </div>
-        <div class="newsletter-form">
-          <input type="email" placeholder="Votre adresse email">
-          <button>S'abonner</button>
-        </div>
+        <form class="newsletter__form" (submit)="subscribe($event)">
+          <input type="email"
+                 [(ngModel)]="email"
+                 name="email"
+                 placeholder="votre@email.com"
+                 class="newsletter__input"
+                 autocomplete="email">
+          <button type="submit" class="newsletter__btn">S'abonner</button>
+        </form>
+        <p class="newsletter__note">Pas de spam · Désabonnement en 1 clic</p>
       </div>
     </div>
   </section>
+
+  <!-- TOAST -->
+  <div class="toast" [class.toast--on]="toastOn">{{ toastMsg }}</div>
+
 </div>

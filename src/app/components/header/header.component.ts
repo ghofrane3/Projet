@@ -1,10 +1,13 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterModule, Router } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { AuthService } from '../../services/auth.service';
-import { CartService } from '../../services/cart.service';
-import { Subscription } from 'rxjs';
+import {
+  Component, OnInit, OnDestroy,
+  HostListener, ViewChild, ElementRef
+} from '@angular/core';
+import { CommonModule }  from '@angular/common';
+import { RouterModule }  from '@angular/router';
+import { FormsModule }   from '@angular/forms';
+import { Router }        from '@angular/router';
+import { AuthService }   from '../../services/auth.service';
+import { CartService }   from '../../services/cart.service';
 
 @Component({
   selector: 'app-header',
@@ -14,16 +17,27 @@ import { Subscription } from 'rxjs';
   styleUrls: ['./header.component.scss']
 })
 export class HeaderComponent implements OnInit, OnDestroy {
-  isMenuOpen = false;
-  isUserMenuOpen = false;
-  searchQuery = '';
+
+  @ViewChild('searchInput') searchInputRef!: ElementRef<HTMLInputElement>;
+
+  // ── scroll state
+  scrolled   = false;
+  hidden     = false;
+  private lastY = 0;
+
+  // ── UI toggles
+  menuOpen     = false;
+  searchOpen   = false;
+  userMenuOpen = false;
+
+  // ── data
+  searchQuery   = '';
   cartItemsCount = 0;
-  cartTotal = 0;
-  wishlistCount = 0;
+  cartTotal      = 0;
+  wishlistCount  = 0;
   currentUser: any = null;
 
-  private authSubscription: Subscription = new Subscription();
-  private cartSubscription: Subscription = new Subscription();
+  private cartSub: any;
 
   constructor(
     private authService: AuthService,
@@ -32,89 +46,85 @@ export class HeaderComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // S'abonner aux changements d'authentification
-    this.authSubscription = this.authService.currentUser$.subscribe(user => {
-      this.currentUser = user;
-      this.updateWishlistCount();
-    });
+    // Cart subscription
+    try {
+      this.cartSub = this.cartService.cart$.subscribe((items: any[]) => {
+        this.cartItemsCount = items.reduce((s, i) => s + (i.quantity || 1), 0);
+        this.cartTotal = items.reduce(
+          (s, i) => s + ((i.product?.discountPrice || i.product?.price || 0) * (i.quantity || 1)),
+          0
+        );
+      });
+    } catch {}
 
-    // S'abonner aux changements du panier
-    this.cartSubscription = this.cartService.cart$.subscribe(cart => {
-      this.cartItemsCount = this.cartService.getTotalItems();
-      this.cartTotal = this.cartService.getTotalPrice();
-    });
-
-    // Fermer les menus au clic extérieur
-    document.addEventListener('click', this.handleClickOutside.bind(this));
+    // Current user
+    try {
+      this.currentUser = this.authService.getCurrentUser?.() || null;
+    } catch {}
   }
 
   ngOnDestroy(): void {
-    // Nettoyer les abonnements
-    this.authSubscription.unsubscribe();
-    this.cartSubscription.unsubscribe();
-    document.removeEventListener('click', this.handleClickOutside.bind(this));
+    this.cartSub?.unsubscribe?.();
   }
 
+  // ── Scroll detection
+  @HostListener('window:scroll')
+  onScroll(): void {
+    const y = window.scrollY;
+    this.scrolled = y > 20;
+    this.hidden   = y > 120 && y > this.lastY;
+    this.lastY    = y;
+  }
+
+  // ── Click outside to close menus
   @HostListener('document:click', ['$event'])
-  handleClickOutside(event: Event): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('.user-dropdown') && this.isUserMenuOpen) {
-      this.closeUserMenu();
-    }
-    if (!target.closest('.nav') && !target.closest('.menu-btn') && this.isMenuOpen) {
-      this.closeMenu();
-    }
+  onDocClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    if (!target.closest('.header__user'))    this.userMenuOpen = false;
+    if (!target.closest('.header__search'))  this.searchOpen   = false;
   }
 
-  toggleMenu(): void {
-    this.isMenuOpen = !this.isMenuOpen;
-  }
-
-  closeMenu(): void {
-    this.isMenuOpen = false;
-  }
-
-  toggleUserMenu(): void {
-    this.isUserMenuOpen = !this.isUserMenuOpen;
-  }
-
-  closeUserMenu(): void {
-    this.isUserMenuOpen = false;
-  }
-
+  // ── Auth helpers
   isLoggedIn(): boolean {
-    return this.authService.isLoggedIn();
+    try { return this.authService.isLoggedIn?.() ?? false; }
+    catch { return false; }
   }
 
   isAdmin(): boolean {
-    return this.authService.isAdmin();
-  }
-
-  updateWishlistCount(): void {
-    if (this.currentUser) {
-      const wishlist = JSON.parse(localStorage.getItem(`wishlist_${this.currentUser.id}`) || '[]');
-      this.wishlistCount = wishlist.length;
-    } else {
-      this.wishlistCount = 0;
-    }
-  }
-
-  search(): void {
-    if (this.searchQuery.trim()) {
-      this.router.navigate(['/products'], {
-        queryParams: { search: this.searchQuery }
-      });
-      this.searchQuery = '';
-    }
-  }
-
-  goToCart(): void {
-    this.router.navigate(['/cart']);
+    try { return this.authService.isAdmin?.() ?? false; }
+    catch { return false; }
   }
 
   logout(): void {
-    this.authService.logout();
-    this.closeUserMenu();
+    try { this.authService.logout?.(); }
+    catch {}
     this.router.navigate(['/']);
   }
+
+  // ── Menu
+  toggleMenu(): void  { this.menuOpen = !this.menuOpen; }
+  closeMenu(): void   { this.menuOpen = false; }
+
+  // ── Search
+  toggleSearch(): void {
+    this.searchOpen = !this.searchOpen;
+    if (this.searchOpen) {
+      setTimeout(() => this.searchInputRef?.nativeElement?.focus(), 80);
+    }
+  }
+
+  doSearch(): void {
+    if (this.searchQuery.trim()) {
+      this.router.navigate(['/products'], { queryParams: { q: this.searchQuery } });
+      this.searchOpen   = false;
+      this.searchQuery  = '';
+    }
+  }
+
+  // ── User menu
+  toggleUserMenu(): void { this.userMenuOpen = !this.userMenuOpen; }
+  closeUserMenu(): void  { this.userMenuOpen = false; }
+
+  // ── Cart
+  goToCart(): void { this.router.navigate(['/cart']); }
 }
