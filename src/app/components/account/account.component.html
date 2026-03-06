@@ -1,336 +1,268 @@
 <div class="account-page">
-  <!-- Header -->
-  <div class="account-header">
-    <div class="container">
-      <div class="header-content">
-        <h1><i class="fas fa-user-circle"></i> Mon Compte</h1>
-        <p>Gérez vos informations, commandes et préférences</p>
-      </div>
-    </div>
+
+  <!-- Hero Header -->
+  <div class="account-hero">
+    <h1 class="hero-title">Mon Compte</h1>
+    <p class="hero-subtitle">Gérez vos informations, commandes et préférences</p>
   </div>
 
-  <div class="container">
-    <div class="account-layout">
-      <!-- Sidebar -->
-      <div class="account-sidebar">
-        <div class="user-profile">
-          <img [src]="user?.avatar" alt="Avatar" class="user-avatar">
-          <div class="user-info">
-            <h3>{{ user?.firstName }} {{ user?.lastName }}</h3>
-            <p class="user-email">{{ user?.email }}</p>
-            <p class="user-role">
-              <i class="fas fa-shield-alt"></i>
-              {{ user?.role === 'admin' ? 'Administrateur' : 'Client' }}
-            </p>
+  <div class="account-container">
+
+    <!-- Sidebar -->
+    <aside class="account-sidebar">
+
+      <!-- User Card -->
+      <div class="user-card">
+        <div class="user-avatar">{{ getInitials() }}</div>
+        <div class="user-info">
+          <h3 class="user-name">{{ user?.name }}</h3>
+          <p class="user-email">{{ user?.email }}</p>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="account-nav">
+        <button
+          class="nav-item"
+          [class.active]="activeTab === 'profile'"
+          (click)="setActiveTab('profile')"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <span>Mon Profil</span>
+        </button>
+
+        <button
+          class="nav-item"
+          [class.active]="activeTab === 'orders'"
+          (click)="setActiveTab('orders')"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+          <span>Mes Commandes</span>
+          <span class="badge" *ngIf="stats.totalOrders > 0">{{ stats.totalOrders }}</span>
+        </button>
+
+        <button
+          class="nav-item"
+          [class.active]="activeTab === 'wishlist'"
+          (click)="setActiveTab('wishlist')"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+          <span>Ma Liste de Souhaits</span>
+          <span class="badge" *ngIf="stats.wishlistCount > 0">{{ stats.wishlistCount }}</span>
+        </button>
+
+        <button
+          class="nav-item"
+          [class.active]="activeTab === 'settings'"
+          (click)="setActiveTab('settings')"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v6m0 6v6m-6-6h6m6 0h6"/>
+          </svg>
+          <span>Paramètres</span>
+        </button>
+      </nav>
+
+      <!-- Stats -->
+      <div class="account-stats">
+        <div class="stat-item">
+          <div class="stat-icon">🛍️</div>
+          <div class="stat-info">
+            <div class="stat-value">{{ stats.totalOrders }}</div>
+            <div class="stat-label">Commandes</div>
           </div>
         </div>
-
-        <nav class="account-nav">
-          <a [class.active]="activeTab === 'profile'" (click)="activeTab = 'profile'">
-            <i class="fas fa-user"></i>
-            Mon Profil
-          </a>
-          <a [class.active]="activeTab === 'orders'" (click)="activeTab = 'orders'">
-            <i class="fas fa-shopping-bag"></i>
-            Mes Commandes
-            <span class="badge">{{ orders.length }}</span>
-          </a>
-          <a [class.active]="activeTab === 'wishlist'" (click)="activeTab = 'wishlist'">
-            <i class="fas fa-heart"></i>
-            Ma Liste de Souhaits
-            <span class="badge">{{ wishlist.length }}</span>
-          </a>
-          <a [class.active]="activeTab === 'settings'" (click)="activeTab = 'settings'">
-            <i class="fas fa-cog"></i>
-            Paramètres
-          </a>
-          <a routerLink="/" class="store-link">
-            <i class="fas fa-store"></i>
-            Retour à la boutique
-          </a>
-          <a href="javascript:void(0)" (click)="logout()" class="logout-link">
-            <i class="fas fa-sign-out-alt"></i>
-            Déconnexion
-          </a>
-        </nav>
-
-        <div class="account-stats">
-          <div class="stat-card">
-            <i class="fas fa-shopping-cart"></i>
-            <div>
-              <h4>{{ user?.ordersCount || 0 }}</h4>
-              <p>Commandes</p>
-            </div>
-          </div>
-          <div class="stat-card">
-            <i class="fas fa-coins"></i>
-            <div>
-              <h4>{{ (user?.totalSpent || 0).toFixed(2) }} DT</h4>
-              <p>Total dépensé</p>
-            </div>
+        <div class="stat-item">
+          <div class="stat-icon">💰</div>
+          <div class="stat-info">
+            <div class="stat-value">{{ stats.totalSpent | number:'1.0-0' }} DT</div>
+            <div class="stat-label">Total dépensé</div>
           </div>
         </div>
       </div>
 
-      <!-- Main Content -->
-      <div class="account-content">
-        <!-- Profil Tab -->
-        <div *ngIf="activeTab === 'profile'" class="tab-content">
-          <div class="tab-header">
-            <h2><i class="fas fa-user-edit"></i> Mon Profil</h2>
-            <button *ngIf="!editMode" class="edit-btn" (click)="editMode = true">
-              <i class="fas fa-edit"></i> Modifier
+      <!-- Actions -->
+      <div class="sidebar-actions">
+        <button class="btn-link" routerLink="/">
+          ← Retour à la boutique
+        </button>
+        <button class="btn-logout" (click)="logout()">
+          Déconnexion
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- Content -->
+    <main class="account-content">
+
+      <!-- Messages -->
+      <div class="alert alert-success" *ngIf="success">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span>{{ success }}</span>
+      </div>
+
+      <div class="alert alert-error" *ngIf="error">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <span>{{ error }}</span>
+      </div>
+
+      <!-- MON PROFIL -->
+      <div class="content-section" *ngIf="activeTab === 'profile'">
+        <div class="section-header">
+          <h2 class="section-title">Mon Profil</h2>
+          <button class="btn btn-outline btn-sm" (click)="onProfileSubmit()" [disabled]="saving">
+            <span *ngIf="!saving">✓ Enregistrer</span>
+            <span *ngIf="saving">Enregistrement...</span>
+          </button>
+        </div>
+
+        <form (ngSubmit)="onProfileSubmit()" class="account-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label>PRÉNOM</label>
+              <input type="text" [(ngModel)]="profileForm.firstName" name="firstName">
+            </div>
+            <div class="form-group">
+              <label>NOM</label>
+              <input type="text" [(ngModel)]="profileForm.lastName" name="lastName">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>EMAIL</label>
+            <input type="email" [(ngModel)]="profileForm.email" name="email" disabled>
+          </div>
+
+          <div class="form-group">
+            <label>TÉLÉPHONE</label>
+            <input type="tel" [(ngModel)]="profileForm.phone" name="phone" placeholder="06 12 34 56 78">
+          </div>
+
+          <div class="form-group">
+            <label>ADRESSE</label>
+            <input type="text" [(ngModel)]="profileForm.address" name="address" placeholder="Votre adresse complète">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>VILLE</label>
+              <input type="text" [(ngModel)]="profileForm.city" name="city">
+            </div>
+            <div class="form-group">
+              <label>CODE POSTAL</label>
+              <input type="text" [(ngModel)]="profileForm.postalCode" name="postalCode">
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- MES COMMANDES -->
+      <div class="content-section" *ngIf="activeTab === 'orders'">
+        <h2 class="section-title">Mes Commandes</h2>
+
+        <div class="orders-list" *ngIf="orders.length > 0">
+          <div class="order-card" *ngFor="let order of orders">
+            <div class="order-header">
+              <div class="order-number">{{ order.orderNumber }}</div>
+              <span class="order-status" [ngClass]="getStatusClass(order.status)">
+                {{ order.status }}
+              </span>
+            </div>
+            <div class="order-info">
+              <div class="order-date">{{ order.date }}</div>
+              <div class="order-items">{{ order.items }} article(s)</div>
+              <div class="order-total">{{ order.total }} DT</div>
+            </div>
+            <button class="btn btn-outline btn-sm" [routerLink]="['/orders', order._id]">
+              Voir les détails
             </button>
-            <div *ngIf="editMode" class="edit-actions">
-              <button class="save-btn" (click)="updateProfile()">
-                <i class="fas fa-save"></i> Enregistrer
-              </button>
-              <button class="cancel-btn" (click)="editMode = false; loadUserData()">
-                <i class="fas fa-times"></i> Annuler
-              </button>
-            </div>
-          </div>
-
-          <div class="profile-form">
-            <div class="form-row">
-              <div class="form-group">
-                <label><i class="fas fa-user"></i> Prénom</label>
-                <input type="text" [(ngModel)]="profileData.firstName" [disabled]="!editMode">
-              </div>
-              <div class="form-group">
-                <label><i class="fas fa-user"></i> Nom</label>
-                <input type="text" [(ngModel)]="profileData.lastName" [disabled]="!editMode">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label><i class="fas fa-envelope"></i> Email</label>
-              <input type="email" [(ngModel)]="profileData.email" [disabled]="!editMode">
-            </div>
-
-            <div class="form-group">
-              <label><i class="fas fa-phone"></i> Téléphone</label>
-              <input type="tel" [(ngModel)]="profileData.phone" [disabled]="!editMode">
-            </div>
-
-            <div class="form-group">
-              <label><i class="fas fa-home"></i> Adresse</label>
-              <input type="text" [(ngModel)]="profileData.address" [disabled]="!editMode"
-                     placeholder="Votre adresse complète">
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label><i class="fas fa-city"></i> Ville</label>
-                <input type="text" [(ngModel)]="profileData.city" [disabled]="!editMode">
-              </div>
-              <div class="form-group">
-                <label><i class="fas fa-mail-bulk"></i> Code Postal</label>
-                <input type="text" [(ngModel)]="profileData.zipCode" [disabled]="!editMode">
-              </div>
-            </div>
-          </div>
-
-          <div class="security-section">
-            <h3><i class="fas fa-shield-alt"></i> Sécurité</h3>
-            <div class="security-actions">
-              <button class="btn-secondary">
-                <i class="fas fa-key"></i> Changer le mot de passe
-              </button>
-              <button class="btn-secondary">
-                <i class="fas fa-bell"></i> Préférences de notifications
-              </button>
-            </div>
           </div>
         </div>
 
-        <!-- Orders Tab -->
-        <div *ngIf="activeTab === 'orders'" class="tab-content">
-          <div class="tab-header">
-            <h2><i class="fas fa-history"></i> Historique des Commandes</h2>
-            <p class="subtitle">{{ orders.length }} commande(s) au total</p>
-          </div>
-
-          <div *ngIf="orders.length === 0" class="empty-state">
-            <i class="fas fa-shopping-cart"></i>
-            <h3>Aucune commande</h3>
-            <p>Vous n'avez pas encore passé de commande</p>
-            <button routerLink="/products" class="btn-primary">
-              <i class="fas fa-shopping-bag"></i> Découvrir la boutique
-            </button>
-          </div>
-
-          <div *ngIf="orders.length > 0" class="orders-list">
-            <div *ngFor="let order of orders" class="order-card">
-              <div class="order-header">
-                <div>
-                  <h4>Commande #{{ order.id }}</h4>
-                  <p class="order-date">
-                    <i class="far fa-calendar"></i>
-                    {{ order.createdAt | date:'dd/MM/yyyy à HH:mm' }}
-                  </p>
-                </div>
-                <div class="order-status">
-                  <span class="status-badge" [class]="getOrderStatusColor(order.status)">
-                    {{ getOrderStatusText(order.status) }}
-                  </span>
-                </div>
-              </div>
-
-              <div class="order-items">
-                <div *ngFor="let item of order.items" class="order-item">
-                  <img [src]="item.image" [alt]="item.name" class="item-image">
-                  <div class="item-details">
-                    <h5>{{ item.name }}</h5>
-                    <p>{{ item.size }} | {{ item.color }}</p>
-                    <p>{{ item.quantity }} × {{ item.price.toFixed(2) }} DT</p>
-                  </div>
-                  <div class="item-total">
-                    {{ (item.price * item.quantity).toFixed(2) }} DT
-                  </div>
-                </div>
-              </div>
-
-              <div class="order-footer">
-                <div class="order-total">
-                  <strong>Total : {{ order.total.toFixed(2) }} DT</strong>
-                </div>
-                <div class="order-actions">
-                  <button class="btn-outline">
-                    <i class="fas fa-eye"></i> Voir les détails
-                  </button>
-                  <button *ngIf="order.status === 'pending'"
-                          class="btn-danger"
-                          (click)="cancelOrder(order.id)">
-                    <i class="fas fa-times"></i> Annuler
-                  </button>
-                  <button *ngIf="order.status === 'delivered'" class="btn-secondary">
-                    <i class="fas fa-redo"></i> Commander à nouveau
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Wishlist Tab -->
-        <div *ngIf="activeTab === 'wishlist'" class="tab-content">
-          <div class="tab-header">
-            <h2><i class="fas fa-heart"></i> Ma Liste de Souhaits</h2>
-            <p class="subtitle">{{ wishlist.length }} article(s) sauvegardé(s)</p>
-          </div>
-
-          <div *ngIf="wishlist.length === 0" class="empty-state">
-            <i class="fas fa-heart"></i>
-            <h3>Liste de souhaits vide</h3>
-            <p>Ajoutez vos produits préférés ici</p>
-            <button routerLink="/products" class="btn-primary">
-              <i class="fas fa-shopping-bag"></i> Explorer la boutique
-            </button>
-          </div>
-
-          <div *ngIf="wishlist.length > 0" class="wishlist-grid">
-            <div *ngFor="let product of wishlist" class="wishlist-item">
-              <div class="item-image">
-                <img [src]="product.images[0]" [alt]="product.name">
-                <button class="remove-btn" (click)="removeFromWishlist(product.id)">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-              <div class="item-info">
-                <h4>{{ product.name }}</h4>
-                <p class="item-category">{{ product.category }}</p>
-                <div class="item-price">
-                  <span class="price">{{ (product.discountPrice || product.price).toFixed(2) }} DT</span>
-                  <span *ngIf="product.discountPrice" class="old-price">
-                    {{ product.price.toFixed(2) }} DT
-                  </span>
-                </div>
-                <div class="item-actions">
-                  <button class="btn-primary">
-                    <i class="fas fa-shopping-cart"></i> Ajouter au panier
-                  </button>
-                  <button class="btn-outline">
-                    <i class="far fa-eye"></i> Voir
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Settings Tab -->
-        <div *ngIf="activeTab === 'settings'" class="tab-content">
-          <div class="tab-header">
-            <h2><i class="fas fa-cogs"></i> Paramètres du compte</h2>
-          </div>
-
-          <div class="settings-grid">
-            <div class="setting-card">
-              <i class="fas fa-bell"></i>
-              <h3>Notifications</h3>
-              <p>Gérez vos préférences de notifications</p>
-              <div class="setting-options">
-                <label>
-                  <input type="checkbox" checked>
-                  <span>Promotions et offres</span>
-                </label>
-                <label>
-                  <input type="checkbox" checked>
-                  <span>Mises à jour de commande</span>
-                </label>
-                <label>
-                  <input type="checkbox">
-                  <span>Newsletter</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="setting-card">
-              <i class="fas fa-credit-card"></i>
-              <h3>Moyens de paiement</h3>
-              <p>Gérez vos cartes enregistrées</p>
-              <button class="btn-outline">
-                <i class="fas fa-plus"></i> Ajouter une carte
-              </button>
-            </div>
-
-            <div class="setting-card">
-              <i class="fas fa-map-marker-alt"></i>
-              <h3>Adresses</h3>
-              <p>Gérez vos adresses de livraison</p>
-              <button class="btn-outline">
-                <i class="fas fa-plus"></i> Ajouter une adresse
-              </button>
-            </div>
-
-            <div class="setting-card">
-              <i class="fas fa-shield-alt"></i>
-              <h3>Sécurité</h3>
-              <p>Protégez votre compte</p>
-              <button class="btn-outline">
-                <i class="fas fa-key"></i> Changer le mot de passe
-              </button>
-            </div>
-          </div>
-
-          <div class="danger-zone">
-            <h3><i class="fas fa-exclamation-triangle"></i> Zone dangereuse</h3>
-            <p>Ces actions sont irréversibles. Soyez certain de ce que vous faites.</p>
-            <div class="danger-actions">
-              <button class="btn-danger">
-                <i class="fas fa-file-export"></i> Exporter mes données
-              </button>
-              <button class="btn-danger">
-                <i class="fas fa-user-slash"></i> Désactiver mon compte
-              </button>
-              <button class="btn-danger">
-                <i class="fas fa-trash"></i> Supprimer mon compte
-              </button>
-            </div>
-          </div>
+        <div class="empty-state" *ngIf="orders.length === 0 && !loading">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+          <h3>Aucune commande</h3>
+          <p>Vous n'avez pas encore passé de commande</p>
+          <button class="btn btn-primary" routerLink="/products">
+            Explorer la boutique
+          </button>
         </div>
       </div>
-    </div>
+
+      <!-- LISTE DE SOUHAITS -->
+      <div class="content-section" *ngIf="activeTab === 'wishlist'">
+        <h2 class="section-title">Ma Liste de Souhaits</h2>
+        <div class="empty-state">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+          <h3>Liste vide</h3>
+          <p>Ajoutez des articles à vos favoris</p>
+        </div>
+      </div>
+
+      <!-- PARAMÈTRES -->
+      <div class="content-section" *ngIf="activeTab === 'settings'">
+        <h2 class="section-title">Sécurité</h2>
+
+        <form (ngSubmit)="onSecuritySubmit()" class="account-form">
+          <div class="form-group">
+            <label>MOT DE PASSE ACTUEL</label>
+            <input type="password" [(ngModel)]="securityForm.currentPassword" name="currentPassword" required>
+          </div>
+
+          <div class="form-group">
+            <label>NOUVEAU MOT DE PASSE</label>
+            <input type="password" [(ngModel)]="securityForm.newPassword" name="newPassword" required>
+          </div>
+
+          <div class="form-group">
+            <label>CONFIRMER LE MOT DE PASSE</label>
+            <input type="password" [(ngModel)]="securityForm.confirmPassword" name="confirmPassword" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary" [disabled]="saving">
+            <span *ngIf="!saving">Changer le mot de passe</span>
+            <span *ngIf="saving">Enregistrement...</span>
+          </button>
+        </form>
+
+        <div class="preferences-section">
+          <h3 class="subsection-title">Préférences de notifications</h3>
+          <label class="checkbox-label">
+            <input type="checkbox" checked>
+            <span>Recevoir les offres par email</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox">
+            <span>Notifications de commande</span>
+          </label>
+        </div>
+      </div>
+
+    </main>
+
   </div>
+
 </div>

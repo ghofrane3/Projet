@@ -1,131 +1,249 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
-import { OrderService } from '../../services/order.service';
-import { ProductService } from '../../services/product.service';
-import { User, Order } from '../../models/user.model';
-import { Product } from '../../models/product.model';
+
+interface Order {
+  _id: string;
+  orderNumber: string;
+  date: string;
+  total: number;
+  status: string;
+  items: number;
+}
 
 @Component({
   selector: 'app-account',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './account.component.html',
   styleUrls: ['./account.component.scss']
 })
 export class AccountComponent implements OnInit {
-  user: User | null = null;
-  orders: Order[] = [];
-  wishlist: Product[] = [];
-  activeTab: 'profile' | 'orders' | 'wishlist' | 'settings' = 'profile';
+  activeTab = 'profile'; // profile, orders, wishlist, settings
 
-  editMode = false;
-  profileData = {
+  // User info
+  user: any = null;
+
+  // Profile form
+  profileForm = {
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     address: '',
     city: '',
-    zipCode: ''
+    postalCode: ''
   };
+
+  // Security form
+  securityForm = {
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  };
+
+  // Orders
+  orders: Order[] = [];
+
+  // Stats
+  stats = {
+    totalOrders: 0,
+    totalSpent: 0,
+    wishlistCount: 0
+  };
+
+  // States
+  loading = false;
+  saving = false;
+  error = '';
+  success = '';
 
   constructor(
     private authService: AuthService,
-    private orderService: OrderService,
-    private productService: ProductService,
+    private http: HttpClient,
     private router: Router
   ) {}
 
   ngOnInit(): void {
-    this.user = this.authService.getCurrentUser();
-
-    if (!this.user) {
-      this.router.navigate(['/login']);
-      return;
-    }
-
     this.loadUserData();
     this.loadOrders();
-    this.loadWishlist();
+    this.loadStats();
   }
 
   loadUserData(): void {
+    this.user = this.authService.getCurrentUser();
+
     if (this.user) {
-      this.profileData = {
-        firstName: this.user.firstName,
-        lastName: this.user.lastName,
-        email: this.user.email,
-        phone: this.user.phone || '',
-        address: this.user.address || '',
-        city: this.user.city || '',
-        zipCode: this.user.zipCode || ''
+      const [firstName, ...lastNameParts] = this.user.name.split(' ');
+      this.profileForm = {
+        firstName: firstName || '',
+        lastName: lastNameParts.join(' ') || '',
+        email: this.user.email || '',
+        phone: '',
+        address: '',
+        city: '',
+        postalCode: ''
       };
     }
   }
 
   loadOrders(): void {
-    if (this.user) {
-      this.orders = this.orderService.getUserOrders(this.user.id);
+    this.loading = true;
+
+    this.http.get<any>('http://localhost:5000/api/orders/my-orders')
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.orders = response.orders.map((order: any) => ({
+              _id: order._id,
+              orderNumber: `#ME-${order._id.slice(-8)}`,
+              date: this.formatDate(order.createdAt),
+              total: order.totalAmount,
+              status: this.translateStatus(order.status),
+              items: order.items.length
+            }));
+          }
+          this.loading = false;
+        },
+        error: (error) => {
+          console.error('Erreur chargement commandes:', error);
+          this.loading = false;
+        }
+      });
+  }
+
+  loadStats(): void {
+    this.http.get<any>('http://localhost:5000/api/users/stats')
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.stats = response.stats;
+          }
+        },
+        error: (error) => {
+          console.error('Erreur chargement stats:', error);
+        }
+      });
+  }
+
+  setActiveTab(tab: string): void {
+    this.activeTab = tab;
+    this.error = '';
+    this.success = '';
+  }
+
+  onProfileSubmit(): void {
+    this.saving = true;
+    this.error = '';
+    this.success = '';
+
+    const updatedData = {
+      name: `${this.profileForm.firstName} ${this.profileForm.lastName}`,
+      phone: this.profileForm.phone,
+      address: this.profileForm.address,
+      city: this.profileForm.city,
+      postalCode: this.profileForm.postalCode
+    };
+
+    this.http.put('http://localhost:5000/api/users/profile', updatedData)
+      .subscribe({
+        next: (response: any) => {
+          this.success = 'Profil mis à jour avec succès !';
+          this.saving = false;
+
+          // Mettre à jour les données locales
+          this.authService.updateProfile(updatedData);
+        },
+        error: (error) => {
+          this.error = 'Erreur lors de la mise à jour';
+          this.saving = false;
+        }
+      });
+  }
+
+  onSecuritySubmit(): void {
+    if (this.securityForm.newPassword !== this.securityForm.confirmPassword) {
+      this.error = 'Les mots de passe ne correspondent pas';
+      return;
     }
-  }
 
-  loadWishlist(): void {
-    // Simuler une liste de souhaits
-    this.wishlist = this.productService.getFeaturedProducts();
-  }
+    if (this.securityForm.newPassword.length < 8) {
+      this.error = 'Le mot de passe doit contenir au moins 8 caractères';
+      return;
+    }
 
-  updateProfile(): void {
-    if (this.user) {
-      const success = this.authService.updateProfile(this.profileData);
-      if (success) {
-        this.user = this.authService.getCurrentUser();
-        this.editMode = false;
-        alert('Profil mis à jour avec succès!');
+    this.saving = true;
+    this.error = '';
+    this.success = '';
+
+    this.http.put('http://localhost:5000/api/users/password', {
+      currentPassword: this.securityForm.currentPassword,
+      newPassword: this.securityForm.newPassword
+    }).subscribe({
+      next: () => {
+        this.success = 'Mot de passe modifié avec succès !';
+        this.securityForm = {
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        };
+        this.saving = false;
+      },
+      error: (error) => {
+        this.error = error.error?.message || 'Erreur lors de la modification';
+        this.saving = false;
       }
-    }
-  }
-
-  getOrderStatusColor(status: string): string {
-    const colors: {[key: string]: string} = {
-      'pending': 'warning',
-      'processing': 'info',
-      'shipped': 'primary',
-      'delivered': 'success',
-      'cancelled': 'danger'
-    };
-    return colors[status] || 'secondary';
-  }
-
-  getOrderStatusText(status: string): string {
-    const texts: {[key: string]: string} = {
-      'pending': 'En attente',
-      'processing': 'En traitement',
-      'shipped': 'Expédiée',
-      'delivered': 'Livrée',
-      'cancelled': 'Annulée'
-    };
-    return texts[status] || status;
+    });
   }
 
   logout(): void {
-    this.authService.logout();
+    this.authService.logout().subscribe({
+      next: () => this.router.navigate(['/login']),
+      error: () => this.router.navigate(['/login'])
+    });
   }
 
-  cancelOrder(orderId: string): void {
-    if (confirm('Êtes-vous sûr de vouloir annuler cette commande ?')) {
-      const success = this.orderService.updateOrderStatus(orderId, 'cancelled');
-      if (success) {
-        this.loadOrders();
-        alert('Commande annulée avec succès!');
-      }
-    }
+  formatDate(dateString: string): string {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
   }
 
-  removeFromWishlist(productId: number): void {
-    this.wishlist = this.wishlist.filter(p => p.id !== productId);
-    // Dans une vraie application, vous appelleriez un service ici
+  translateStatus(status: string): string {
+    const statusMap: { [key: string]: string } = {
+      'pending': 'En attente',
+      'processing': 'En cours',
+      'shipped': 'Expédié',
+      'delivered': 'Livré',
+      'cancelled': 'Annulé'
+    };
+    return statusMap[status] || status;
+  }
+
+  getStatusClass(status: string): string {
+    const classMap: { [key: string]: string } = {
+      'Livré': 'status-delivered',
+      'En cours': 'status-processing',
+      'En attente': 'status-pending',
+      'Expédié': 'status-shipped',
+      'Annulé': 'status-cancelled'
+    };
+    return classMap[status] || 'status-default';
+  }
+
+  getInitials(): string {
+    if (!this.user) return 'U';
+    return this.user.name
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   }
 }

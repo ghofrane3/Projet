@@ -1,0 +1,191 @@
+<div class="product-detail-page">
+
+  <!-- Breadcrumb -->
+  <nav class="breadcrumb" *ngIf="product">
+    <a routerLink="/">Accueil</a>
+    <span class="separator">/</span>
+    <a [routerLink]="['/products']" [queryParams]="{gender: product.gender}">{{ product.gender }}</a>
+    <span class="separator">/</span>
+    <span class="current">{{ product.name }}</span>
+  </nav>
+
+  <!-- Loading -->
+  <div class="loading-state" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Chargement du produit...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-state" *ngIf="error && !loading">
+    <h2>{{ error }}</h2>
+    <button class="btn btn-primary" routerLink="/products">Retour à la boutique</button>
+  </div>
+
+  <!-- Product Content -->
+  <div class="product-container" *ngIf="product && !loading">
+
+    <!-- Galerie Images -->
+    <div class="product-gallery">
+
+      <!-- Image principale -->
+      <div class="main-image">
+        <img [src]="getMainImage()" [alt]="product.name">
+
+        <!-- Badge soldes -->
+        <span class="badge-sale" *ngIf="isOnSale()">
+          -{{ getDiscountPercent() }}%
+        </span>
+      </div>
+
+      <!-- Miniatures -->
+      <div class="thumbnails" *ngIf="product.images.length > 1">
+        <div
+          *ngFor="let image of product.images; let i = index"
+          class="thumbnail"
+          [class.active]="i === selectedImage"
+          (click)="selectImage(i)"
+        >
+          <img [src]="image.url" [alt]="product.name">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Informations Produit -->
+    <div class="product-info">
+
+      <!-- Brand -->
+      <div class="product-brand">{{ product.brand }}</div>
+
+      <!-- Titre -->
+      <h1 class="product-title">{{ product.name }}</h1>
+
+      <!-- Prix -->
+      <div class="product-price">
+        <span class="price-current">{{ product.price }} €</span>
+        <span class="price-original" *ngIf="product.originalPrice">
+          {{ product.originalPrice }} €
+        </span>
+      </div>
+
+      <!-- Stock -->
+      <div class="product-stock">
+        <span class="stock-badge in-stock" *ngIf="isInStock()">
+          ✓ En stock
+        </span>
+        <span class="stock-badge out-of-stock" *ngIf="!isInStock()">
+          ✗ Rupture de stock
+        </span>
+      </div>
+
+      <!-- Description -->
+      <div class="product-description">
+        <p>{{ product.description }}</p>
+      </div>
+
+      <!-- Sélection Taille -->
+      <div class="product-option" *ngIf="product.sizes && product.sizes.length > 0">
+        <label class="option-label">
+          TAILLE — <span class="selected-value">{{ selectedSize }}</span>
+        </label>
+        <div class="size-selector">
+          <button
+            *ngFor="let size of product.sizes"
+            class="size-btn"
+            [class.active]="selectedSize === size"
+            (click)="selectSize(size)"
+          >
+            {{ size }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Sélection Couleur -->
+      <div class="product-option" *ngIf="product.colors && product.colors.length > 0">
+        <label class="option-label">
+          COULEUR — <span class="selected-value">{{ selectedColor }}</span>
+        </label>
+        <div class="color-selector">
+          <button
+            *ngFor="let color of product.colors"
+            class="color-btn"
+            [class.active]="selectedColor === color.name"
+            [style.background-color]="color.hex"
+            [title]="color.name"
+            (click)="selectColor(color.name)"
+          >
+          </button>
+        </div>
+      </div>
+
+      <!-- Quantité -->
+      <div class="product-option">
+        <label class="option-label">QUANTITÉ</label>
+        <div class="quantity-selector">
+          <button class="qty-btn" (click)="decrementQuantity()" [disabled]="quantity <= 1">−</button>
+          <span class="qty-value">{{ quantity }}</span>
+          <button class="qty-btn" (click)="incrementQuantity()" [disabled]="!isInStock() || quantity >= product.stock">+</button>
+        </div>
+      </div>
+
+      <!-- Boutons Actions -->
+      <div class="product-actions">
+        <button
+          class="btn btn-primary btn-add-cart"
+          (click)="addToCart()"
+          [disabled]="!isInStock()"
+        >
+          <span *ngIf="!addedToCart">AJOUTER AU PANIER</span>
+          <span *ngIf="addedToCart">✓ AJOUTÉ AU PANIER</span>
+        </button>
+
+        <button
+          class="btn btn-outline btn-favorite"
+          (click)="toggleFavorite()"
+          [class.active]="addedToFavorites"
+        >
+          <span *ngIf="!addedToFavorites">AJOUTER AUX FAVORIS</span>
+          <span *ngIf="addedToFavorites">✓ AUX FAVORIS</span>
+        </button>
+      </div>
+
+      <!-- Informations Supplémentaires -->
+      <div class="product-extras">
+        <div class="extra-item">
+          <span class="extra-icon">🚚</span>
+          <span class="extra-text">Livraison offerte dès 150 €</span>
+        </div>
+        <div class="extra-item">
+          <span class="extra-icon">↻</span>
+          <span class="extra-text">Retour gratuit sous 30 jours</span>
+        </div>
+        <div class="extra-item">
+          <span class="extra-icon">✦</span>
+          <span class="extra-text">Authenticité garantie</span>
+        </div>
+      </div>
+
+      <!-- Détails Produit -->
+      <div class="product-details">
+        <h3 class="details-title">DÉTAILS</h3>
+        <div class="details-list">
+          <div class="detail-item" *ngIf="product.material">
+            <strong>Composition :</strong> {{ product.material }}
+          </div>
+          <div class="detail-item" *ngIf="product.care">
+            <strong>Entretien :</strong> {{ product.care }}
+          </div>
+          <div class="detail-item" *ngIf="product.madeIn">
+            <strong>Origine :</strong> {{ product.madeIn }}
+          </div>
+          <div class="detail-item">
+            <strong>Référence :</strong> {{ product._id.slice(-8).toUpperCase() }}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>

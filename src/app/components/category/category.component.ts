@@ -1,66 +1,203 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
-import { ProductService } from '../../services/product.service';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
 import { CartService } from '../../services/cart.service';
-import { Product } from '../../models/product.model';
+
+interface Product {
+  _id: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  images: { url: string; isMain?: boolean }[];
+  category: string;
+  gender: string;
+  sizes?: string[];
+  colors?: { name: string; hex: string }[];
+  stock: number;
+  brand?: string;
+}
 
 @Component({
   selector: 'app-category',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './category.component.html',
   styleUrls: ['./category.component.scss']
 })
 export class CategoryComponent implements OnInit {
+  loading = true;
   products: Product[] = [];
-  subcategory: string = '';
-  categoryName: string = '';
+  currentGender = '';
+  currentCategory = '';
+  sortBy = 'pertinence';
+
+  // Filtres
+  priceRange = { min: 0, max: 1200 };
+  selectedCategories: string[] = [];
+  selectedSizes: string[] = [];
+  inStockOnly = false;
+  inPromotionOnly = false;
+  newArrivalsOnly = false;
+
+  // Catégories par genre
+  categoriesByGender: { [key: string]: string[] } = {
+    'Femme': ['Robes', 'Manteaux', 'Pantalons', 'Tops', 'Accessoires'],
+    'Homme': ['Costumes', 'Manteaux', 'Chemises', 'Pulls', 'Pantalons', 'Vestes']
+  };
+
+  availableSizes = ['XS', 'S', 'M', 'L', 'XL'];
+
+  sortOptions = [
+    { value: 'pertinence', label: 'Pertinence' },
+    { value: '-createdAt', label: 'Nouveautés' },
+    { value: 'price_asc', label: 'Prix croissant' },
+    { value: 'price_desc', label: 'Prix décroissant' }
+  ];
 
   constructor(
     private route: ActivatedRoute,
-    private productService: ProductService,
+    private router: Router,
+    private http: HttpClient,
     private cartService: CartService
   ) {}
 
   ngOnInit(): void {
-    this.route.params.subscribe(params => {
-      this.subcategory = params['subcategory'];
+    this.route.queryParams.subscribe(params => {
+      this.currentGender = params['gender'] || '';
+      this.currentCategory = params['category'] || '';
       this.loadProducts();
-      this.setCategoryName();
     });
   }
 
   loadProducts(): void {
-    this.products = this.productService.getProductsBySubcategory(this.subcategory);
+    this.loading = true;
+    let params = new HttpParams();
+
+    if (this.currentGender) params = params.set('gender', this.currentGender);
+    if (this.currentCategory) params = params.set('category', this.currentCategory);
+    if (this.sortBy && this.sortBy !== 'pertinence') params = params.set('sort', this.sortBy);
+
+    // Filtres de prix
+    if (this.priceRange.min > 0) params = params.set('minPrice', this.priceRange.min.toString());
+    if (this.priceRange.max < 1200) params = params.set('maxPrice', this.priceRange.max.toString());
+
+    this.http.get<any>('http://localhost:5000/api/products', { params })
+      .subscribe({
+        next: (response) => {
+          this.products = response.products || [];
+          this.applyLocalFilters();
+          this.loading = false;
+        },
+        error: (error) => {
+          console.error('Erreur chargement produits:', error);
+          this.loading = false;
+        }
+      });
   }
 
-  setCategoryName(): void {
-    const names: {[key: string]: string} = {
-      'homme': 'Collection Homme',
-      'femme': 'Collection Femme',
-      'enfant': 'Collection Enfant',
-      'accessoire': 'Accessoires'
-    };
-    this.categoryName = names[this.subcategory] || 'Catégorie';
+  applyLocalFilters(): void {
+    let filtered = [...this.products];
+
+    // Filtre catégories
+    if (this.selectedCategories.length > 0) {
+      filtered = filtered.filter(p => this.selectedCategories.includes(p.category));
+    }
+
+    // Filtre stock
+    if (this.inStockOnly) {
+      filtered = filtered.filter(p => p.stock > 0);
+    }
+
+    // Filtre promotions
+    if (this.inPromotionOnly) {
+      filtered = filtered.filter(p => p.originalPrice && p.originalPrice > p.price);
+    }
+
+    this.products = filtered;
   }
 
-  getCategoryGradient(): string {
-    const gradients: {[key: string]: string} = {
-      'homme': 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
-      'femme': 'linear-gradient(135deg, #EC4899 0%, #BE185D 100%)',
-      'enfant': 'linear-gradient(135deg, #10B981 0%, #047857 100%)',
-      'accessoire': 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)'
-    };
-    return gradients[this.subcategory] || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+  toggleCategory(category: string): void {
+    const index = this.selectedCategories.indexOf(category);
+    if (index > -1) {
+      this.selectedCategories.splice(index, 1);
+    } else {
+      this.selectedCategories.push(category);
+    }
+    this.applyLocalFilters();
   }
 
-  addToCart(product: Product): void {
-    this.cartService.addToCart(product);
+  isCategorySelected(category: string): boolean {
+    return this.selectedCategories.includes(category);
   }
 
-  getDiscountPercentage(product: Product): number {
-    if (!product.discountPrice) return 0;
-    return Math.round(((product.price - product.discountPrice) / product.price) * 100);
+  onSortChange(): void {
+    this.loadProducts();
   }
+
+  onPriceRangeChange(): void {
+    this.loadProducts();
+  }
+
+  resetFilters(): void {
+    this.priceRange = { min: 0, max: 1200 };
+    this.selectedCategories = [];
+    this.selectedSizes = [];
+    this.inStockOnly = false;
+    this.inPromotionOnly = false;
+    this.newArrivalsOnly = false;
+    this.loadProducts();
+  }
+
+  switchGender(gender: string): void {
+    this.router.navigate(['category/:subcategory'], { queryParams: { gender } });
+  }
+
+  getMainImage(product: Product): string {
+    const mainImg = product.images.find(img => img.isMain);
+    return mainImg?.url || product.images[0]?.url || 'assets/placeholder.jpg';
+  }
+
+  getDiscountPercent(product: Product): number {
+    if (product.originalPrice && product.originalPrice > product.price) {
+      return Math.round((1 - product.price / product.originalPrice) * 100);
+    }
+    return 0;
+  }
+
+  isOnSale(product: Product): boolean {
+    return !!(product.originalPrice && product.originalPrice > product.price);
+  }
+
+  addToCart(product: Product, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.cartService.addToCart(product, 1);
+    // TODO: Afficher notification
+  }
+
+  get pageTitle(): string {
+    if (this.currentCategory) {
+      return this.currentCategory;
+    }
+    return this.currentGender || 'Boutique';
+  }
+
+  get availableCategories(): string[] {
+    return this.categoriesByGender[this.currentGender] || [];
+  }
+
+  get productsCount(): number {
+    return this.products.length;
+  }
+  quickAddToCart(product: any, event: Event): void {
+  event.preventDefault(); // Empêcher la navigation
+  event.stopPropagation();
+
+  this.cartService.addToCart(product, 1);
+
+  // Notification visuelle (optionnel)
+  alert(`${product.name} ajouté au panier !`);
+}
 }

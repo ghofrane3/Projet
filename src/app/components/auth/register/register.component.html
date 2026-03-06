@@ -1,110 +1,153 @@
-<!-- Register Component Template -->
-<div class="register-container">
-  <div class="register-card">
+<div class="register-page">
 
-    <!-- Header -->
-    <div class="register-header">
-      <h1>Créer un compte</h1>
-      <p>Rejoignez-nous dès maintenant</p>
+  <!-- Section gauche - Citation -->
+  <div class="register-left">
+    <div class="quote-container">
+      <svg class="quote-icon" width="60" height="60" viewBox="0 0 24 24" fill="none">
+        <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"
+              fill="currentColor" opacity="0.3"/>
+        <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"
+              fill="currentColor" opacity="0.3"/>
+      </svg>
+
+      <blockquote class="quote-text">
+        La mode passe, le style reste
+      </blockquote>
+
+      <div class="quote-author">— COCO CHANEL</div>
+
+      <div class="quote-decoration"></div>
     </div>
-
-    <!-- Error Message -->
-    <div *ngIf="error" class="error-message">
-      <span>{{ error }}</span>
-    </div>
-
-    <!-- MESSAGE EMAIL ENVOYÉ -->
-    <div *ngIf="showEmailSent" class="success-message">
-      <h3>📧 Email envoyé !</h3>
-      <p>{{ successMessage }}</p>
-      <p>Vérifiez votre boîte mail et cliquez sur le lien pour activer votre compte.</p>
-    </div>
-
-    <!-- Register Form -->
-    <form class="register-form" (ngSubmit)="onRegister()">
-
-      <!-- Name -->
-      <div class="form-group">
-        <label>Nom complet</label>
-        <input
-          type="text"
-          [(ngModel)]="name"
-          name="name"
-          required
-          [disabled]="loading"
-        />
-      </div>
-
-      <!-- Email -->
-      <div class="form-group">
-        <label>Email</label>
-        <input
-          type="email"
-          [(ngModel)]="email"
-          name="email"
-          required
-          [disabled]="loading"
-        />
-      </div>
-
-      <!-- Password -->
-      <div class="form-group">
-        <label>Mot de passe</label>
-        <input
-          [type]="showPassword ? 'text' : 'password'"
-          [(ngModel)]="password"
-          name="password"
-          required
-          minlength="6"
-          [disabled]="loading"
-        />
-        <button type="button" (click)="togglePassword()">Afficher</button>
-      </div>
-
-      <!-- Confirm Password -->
-      <div class="form-group">
-        <label>Confirmer mot de passe</label>
-        <input
-          [type]="showConfirmPassword ? 'text' : 'password'"
-          [(ngModel)]="confirmPassword"
-          name="confirmPassword"
-          required
-          [disabled]="loading"
-        />
-        <button type="button" (click)="toggleConfirmPassword()">Afficher</button>
-
-        <small *ngIf="confirmPassword && password !== confirmPassword">
-          Les mots de passe ne correspondent pas
-        </small>
-      </div>
-
-      <!-- Terms -->
-      <label>
-        <input
-          type="checkbox"
-          [(ngModel)]="acceptTerms"
-          name="acceptTerms"
-          [disabled]="loading"
-        />
-        J'accepte les conditions
-      </label>
-
-      <!-- Submit -->
-      <button
-        type="submit"
-        [disabled]="loading || !acceptTerms"
-      >
-        <span *ngIf="!loading">Créer mon compte</span>
-        <span *ngIf="loading">Création...</span>
-      </button>
-
-    </form>
-
-    <!-- Login link -->
-    <div class="login-link">
-      <p>Vous avez déjà un compte ?</p>
-      <a routerLink="/login">Se connecter</a>
-    </div>
-
   </div>
+
+  <!-- Section droite - Formulaire -->
+  <div class="register-right">
+    <div class="register-form-container">
+
+      <!-- Logo -->
+      <div class="form-logo">
+        <span class="logo-text">Fashion</span>
+        <span class="logo-accent">Store</span>
+      </div>
+
+      <!-- Titre -->
+      <h1 class="form-title">Créer un compte</h1>
+      <p class="form-subtitle">Rejoignez la communauté Fashion Store</p>
+
+      <!-- Message succès -->
+      <div class="alert alert-success" *ngIf="success">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span>Compte créé avec succès ! Vérifiez votre email.</span>
+      </div>
+
+      <!-- Erreur -->
+      <div class="alert alert-error" *ngIf="error">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ error }}</span>
+      </div>
+
+      <!-- Formulaire -->
+      <form (ngSubmit)="onSubmit()" class="register-form">
+
+        <!-- Prénom et Nom -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="firstName">PRÉNOM</label>
+            <input
+              type="text"
+              id="firstName"
+              [(ngModel)]="firstName"
+              name="firstName"
+              placeholder="Marie"
+              required
+              [disabled]="loading"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="lastName">NOM</label>
+            <input
+              type="text"
+              id="lastName"
+              [(ngModel)]="lastName"
+              name="lastName"
+              placeholder="Dupont"
+              required
+              [disabled]="loading"
+            >
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label for="email">E-MAIL</label>
+          <input
+            type="email"
+            id="email"
+            [(ngModel)]="email"
+            name="email"
+            placeholder="votre@email.com"
+            required
+            [disabled]="loading"
+          >
+        </div>
+
+        <!-- Password -->
+        <div class="form-group">
+          <label for="password">MOT DE PASSE</label>
+          <div class="password-input">
+            <input
+              [type]="showPassword ? 'text' : 'password'"
+              id="password"
+              [(ngModel)]="password"
+              name="password"
+              placeholder="8 caractères minimum"
+              required
+              [disabled]="loading"
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              (click)="togglePasswordVisibility()"
+              [disabled]="loading"
+            >
+              <svg *ngIf="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg *ngIf="showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bouton submit -->
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          [disabled]="loading"
+        >
+          <span *ngIf="!loading">CRÉER MON COMPTE</span>
+          <span *ngIf="loading" class="loading-spinner"></span>
+        </button>
+
+        <!-- Lien connexion -->
+        <div class="form-login">
+          <span>Déjà membre ?</span>
+          <a routerLink="/login">Se connecter</a>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
 </div>

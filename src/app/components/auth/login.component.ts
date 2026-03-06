@@ -1,115 +1,91 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent {
-  credentials = {
-    email: '',
-    password: ''
-  };
-
-  errorMessage = '';
+  email = '';
+  password = '';
   loading = false;
+  error = '';
   showPassword = false;
-  rememberMe = false;
 
-  // 🆕 NOUVEAU : Gestion de la vérification email
-  needsVerification = false;
-  emailToVerify = '';
-  resendLoading = false;
-  resendSuccess = false;
+  // Informations de démo
+  demoInfo = {
+    client: { email: 'sophie@email.com', password: '123456' },
+    admin: { email: 'admin@maisonelite.com', password: 'admin123' }
+  };
 
   constructor(
     private authService: AuthService,
-    private router: Router,
-    private http: HttpClient
-  ) {}
+    private router: Router
+  ) {
+    // Rediriger si déjà connecté
+    if (this.authService.isAuthenticated()) {
+      this.router.navigate(['/account']);
+    }
+  }
 
-  // ═══════════════════════════════════════════════════════════
-  // CONNEXION
-  // ═══════════════════════════════════════════════════════════
   onSubmit(): void {
-    this.errorMessage = '';
-    this.needsVerification = false;
-    this.resendSuccess = false;
-
-    if (!this.credentials.email || !this.credentials.password) {
-      this.errorMessage = 'Tous les champs sont requis';
+    if (!this.email || !this.password) {
+      this.error = 'Veuillez remplir tous les champs';
       return;
     }
 
     this.loading = true;
+    this.error = '';
 
-    console.log('🔐 Tentative de connexion...');
-
-    this.authService.login(this.credentials).subscribe({
+    // ✅ Passer un OBJET avec email et password
+    this.authService.login({
+      email: this.email,
+      password: this.password
+    }).subscribe({
       next: (response) => {
-        console.log('✅ Connexion réussie:', response);
-        this.loading = false;
+        console.log('✅ Connexion réussie:', response.user);
 
-        // Redirection immédiate
-        if (response.user.role === 'admin') {
+        // Rediriger selon le rôle
+        if (this.authService.isAdmin()) {
           this.router.navigate(['/admin/dashboard']);
         } else {
-          this.router.navigate(['/']);
+          this.router.navigate(['/account']);
         }
+
+        this.loading = false;
       },
       error: (error) => {
         console.error('❌ Erreur connexion:', error);
-        this.loading = false;
 
-        // 🆕 NOUVEAU : Vérifier si c'est un problème de vérification
-        if (error.status === 403 && error.error?.needsVerification) {
-          this.needsVerification = true;
-          this.emailToVerify = error.error.email || this.credentials.email;
-          this.errorMessage = error.error.message;
+        // Gestion des erreurs
+        if (error.status === 403) {
+          this.error = 'Email non vérifié. Veuillez vérifier votre boîte mail.';
+        } else if (error.status === 401) {
+          this.error = 'Email ou mot de passe incorrect';
+        } else if (error.status === 0) {
+          this.error = 'Impossible de se connecter au serveur. Vérifiez que le backend est démarré.';
         } else {
-          this.errorMessage = error.error?.message || 'Email ou mot de passe incorrect';
+          this.error = error.error?.message || 'Erreur lors de la connexion';
         }
+
+        this.loading = false;
       }
     });
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // 🆕 RENVOYER L'EMAIL DE VÉRIFICATION
-  // ═══════════════════════════════════════════════════════════
-  resendVerificationEmail(): void {
-    this.resendLoading = true;
-    this.resendSuccess = false;
-    this.errorMessage = '';
-
-    console.log('📧 Renvoi de l\'email de vérification à:', this.emailToVerify);
-
-    this.http.post('http://localhost:5000/api/auth/resend-verification', {
-      email: this.emailToVerify
-    }).subscribe({
-      next: (response: any) => {
-        console.log('✅ Email renvoyé:', response);
-        this.resendLoading = false;
-        this.resendSuccess = true;
-      },
-      error: (error) => {
-        console.error('❌ Erreur renvoi:', error);
-        this.resendLoading = false;
-        this.errorMessage = error.error?.message || 'Erreur lors du renvoi de l\'email';
-      }
-    });
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // TOGGLE PASSWORD VISIBILITY
-  // ═══════════════════════════════════════════════════════════
   togglePasswordVisibility(): void {
     this.showPassword = !this.showPassword;
+  }
+
+  useDemoAccount(type: 'client' | 'admin'): void {
+    const demo = this.demoInfo[type];
+    this.email = demo.email;
+    this.password = demo.password;
   }
 }

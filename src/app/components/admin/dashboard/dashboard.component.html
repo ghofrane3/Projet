@@ -1,157 +1,152 @@
-<div class="admin-dashboard">
+<div class="dashboard-page">
+
   <!-- Header -->
   <div class="dashboard-header">
-    <h1>👨‍💼 Dashboard Administrateur</h1>
-    <p>Bienvenue sur votre tableau de bord</p>
+    <h1 class="page-title">Tableau de bord</h1>
+    <p class="page-subtitle">Bienvenue, Admin · Jeudi 19 Février 2026</p>
   </div>
 
   <!-- Stats Cards -->
   <div class="stats-grid">
+
     <div class="stat-card">
-      <div class="stat-icon orders">📦</div>
-      <div class="stat-content">
-        <h3>{{ stats.totalOrders }}</h3>
-        <p>Commandes totales</p>
+      <div class="stat-label">CHIFFRE D'AFFAIRES</div>
+      <div class="stat-value">{{ stats.totalRevenue | number:'1.1-1':'fr' }}K €</div>
+      <div class="stat-change" [ngClass]="getChangeClass(stats.revenueChange)">
+        ↑ +{{ stats.revenueChange }}% ce mois
       </div>
+      <div class="stat-bar"></div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-icon products">🛍️</div>
-      <div class="stat-content">
-        <h3>{{ stats.totalProducts }}</h3>
-        <p>Produits en stock</p>
+      <div class="stat-label">COMMANDES</div>
+      <div class="stat-value">{{ stats.totalOrders }}</div>
+      <div class="stat-change" [ngClass]="getChangeClass(stats.ordersChange)">
+        ↑ +{{ stats.ordersChange }}% ce mois
       </div>
+      <div class="stat-bar"></div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-icon pending">⏳</div>
-      <div class="stat-content">
-        <h3>{{ stats.pendingOrders }}</h3>
-        <p>En attente</p>
+      <div class="stat-label">CLIENTS ACTIFS</div>
+      <div class="stat-value">{{ stats.activeClients | number:'1.0-0':'fr' }}</div>
+      <div class="stat-change" [ngClass]="getChangeClass(stats.clientsChange)">
+        ↑ +{{ stats.clientsChange }}% ce mois
       </div>
+      <div class="stat-bar"></div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-icon revenue">💰</div>
-      <div class="stat-content">
-        <h3>{{ formatCurrency(stats.totalRevenue) }}</h3>
-        <p>Revenu total</p>
+      <div class="stat-label">PANIER MOYEN</div>
+      <div class="stat-value">{{ stats.averageBasket }} €</div>
+      <div class="stat-change" [ngClass]="getChangeClass(stats.basketChange)">
+        ↓ {{ stats.basketChange }}% ce mois
       </div>
+      <div class="stat-bar"></div>
     </div>
+
   </div>
 
-  <!-- Quick Actions -->
-  <div class="quick-actions">
-    <h2>Actions rapides</h2>
-    <div class="action-buttons">
-      <button class="action-btn" routerLink="/admin/products/new">
-        ➕ Ajouter un produit
-      </button>
-      <button class="action-btn" routerLink="/admin/products">
-        📦 Gérer les produits
-      </button>
-      <button class="action-btn" routerLink="/admin/orders">
-        📋 Toutes les commandes
-      </button>
-      <button class="action-btn" routerLink="/admin/users">
-        👥 Gérer les utilisateurs
-      </button>
-    </div>
-  </div>
+  <!-- Charts -->
+  <div class="charts-section">
 
-  <!-- Orders Management -->
-  <div class="orders-section">
-    <div class="section-header">
-      <h2>Commandes récentes</h2>
-
-      <!-- Filters -->
-      <div class="filters">
-        <input
-          type="text"
-          placeholder="🔍 Rechercher un client..."
-          [(ngModel)]="searchTerm"
-          (ngModelChange)="onSearchChange()"
-          class="search-input"
-        />
-
-        <select
-          [(ngModel)]="statusFilter"
-          (ngModelChange)="onStatusFilterChange()"
-          class="status-filter"
+    <!-- Ventes -->
+    <div class="chart-card chart-sales">
+      <h3 class="chart-title">Ventes — 12 derniers mois (K€)</h3>
+      <div class="bar-chart">
+        <div
+          class="bar-item"
+          *ngFor="let item of monthlyRevenue"
+          [style.height.%]="getRevenueHeight(item.revenue)"
         >
-          <option value="all">Tous les statuts</option>
-          <option value="pending">En attente</option>
-          <option value="processing">En cours</option>
-          <option value="shipped">Expédiée</option>
-          <option value="delivered">Livrée</option>
-          <option value="cancelled">Annulée</option>
-        </select>
+          <div class="bar-fill"></div>
+        </div>
+      </div>
+      <div class="chart-labels">
+        <span *ngFor="let item of monthlyRevenue">{{ item.month }}</span>
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div *ngIf="loading" class="loading">
-      <div class="spinner"></div>
-      <p>Chargement des commandes...</p>
+    <!-- Répartition -->
+    <div class="chart-card chart-repartition">
+      <h3 class="chart-title">Répartition</h3>
+      <div class="donut-container">
+        <svg class="donut-chart" viewBox="0 0 100 100">
+          <!-- Femme 60% -->
+          <circle cx="50" cy="50" r="40" fill="none"
+            stroke="#d4a574" stroke-width="20"
+            stroke-dasharray="150.8 251.2"
+            transform="rotate(-90 50 50)"></circle>
+          <!-- Homme 30% -->
+          <circle cx="50" cy="50" r="40" fill="none"
+            stroke="#c4b5a0" stroke-width="20"
+            stroke-dasharray="75.4 251.2"
+            stroke-dashoffset="-150.8"
+            transform="rotate(-90 50 50)"></circle>
+          <!-- Autres 10% -->
+          <circle cx="50" cy="50" r="40" fill="none"
+            stroke="#e8e8e8" stroke-width="20"
+            stroke-dasharray="25.12 251.2"
+            stroke-dashoffset="-226.2"
+            transform="rotate(-90 50 50)"></circle>
+        </svg>
+      </div>
+      <div class="donut-legend">
+        <div class="legend-item">
+          <span class="legend-dot" style="background: #d4a574;"></span>
+          <span>Femme {{ clientDistribution.femme }}%</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: #c4b5a0;"></span>
+          <span>Homme {{ clientDistribution.homme }}%</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: #e8e8e8;"></span>
+          <span>Autres {{ clientDistribution.autres }}%</span>
+        </div>
+      </div>
     </div>
 
-    <!-- Error State -->
-    <div *ngIf="error && !loading" class="error-message">
-      <p>{{ error }}</p>
-      <button (click)="loadDashboardData()">Réessayer</button>
-    </div>
+  </div>
 
-    <!-- Orders Table -->
-    <div *ngIf="!loading && !error" class="orders-table-container">
-      <table class="orders-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Client</th>
-            <th>Date</th>
-            <th>Montant</th>
-            <th>Statut</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let order of filteredOrders">
-            <td class="order-id">#{{ order._id.substring(0, 8) }}</td>
-            <td class="customer-info">
-              <div class="customer-name">{{ order.userId.name }}</div>
-              <div class="customer-email">{{ order.userId.email }}</div>
-            </td>
-            <td>{{ formatDate(order.createdAt) }}</td>
-            <td class="amount">{{ formatCurrency(order.totalAmount) }}</td>
-            <td>
-              <span class="status-badge" [ngClass]="getStatusClass(order.status)">
-                {{ getStatusLabel(order.status) }}
-              </span>
-            </td>
-            <td class="actions">
-              <select
-                [(ngModel)]="order.status"
-                (ngModelChange)="updateOrderStatus(order._id, order.status)"
-                class="status-select"
-              >
-                <option value="pending">En attente</option>
-                <option value="processing">En cours</option>
-                <option value="shipped">Expédiée</option>
-                <option value="delivered">Livrée</option>
-                <option value="cancelled">Annulée</option>
-              </select>
-              <button class="btn-view" [routerLink]="['/admin/orders', order._id]">
-                👁️
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+  <!-- Orders Table -->
+  <div class="orders-section">
+    <h3 class="section-title">Commandes récentes</h3>
 
-      <!-- Empty State -->
-      <div *ngIf="filteredOrders.length === 0" class="empty-state">
-        <p>Aucune commande trouvée</p>
+    <div class="orders-table">
+      <div class="table-header">
+        <div class="th">COMMANDE</div>
+        <div class="th">CLIENT</div>
+        <div class="th">DATE</div>
+        <div class="th">MONTANT</div>
+        <div class="th">STATUT</div>
+        <div class="th">ACTIONS</div>
+      </div>
+
+      <div class="table-body" *ngIf="!loading">
+        <div class="table-row" *ngFor="let order of recentOrders">
+          <div class="td">{{ order.orderNumber }}</div>
+          <div class="td">{{ order.customerName }}</div>
+          <div class="td">{{ order.date }}</div>
+          <div class="td">{{ order.amount }} €</div>
+          <div class="td">
+            <span class="status-badge" [ngClass]="getStatusClass(order.status)">
+              {{ order.status }}
+            </span>
+          </div>
+          <div class="td">
+            <button class="btn-view" [routerLink]="['/admin/orders', order._id]">
+              VOIR
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-loading" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Chargement...</p>
       </div>
     </div>
   </div>
+
 </div>

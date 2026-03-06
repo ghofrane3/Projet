@@ -111,11 +111,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       slug: 'accessoire',
       img: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&h=400&fit=crop'
     },
-    {
-      name: 'Enfant',
-      slug: 'enfant',
-      img: 'https://images.unsplash.com/photo-1543087903-1ac2364fd7aa?w=600&h=400&fit=crop'
-    },
+
     {
       name: 'Sport',
       slug: 'sport',

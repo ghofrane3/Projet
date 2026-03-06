@@ -1,75 +1,114 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
-import { CartService } from '../../services/cart.service';
-import { CartItem } from '../../models/product.model';
+import { Injectable } from '@angular/core';
+import { BehaviorSubject, Observable } from 'rxjs';
 
-@Component({
-  selector: 'app-cart',
-  standalone: true,
-  imports: [CommonModule, RouterModule],
-  templateUrl: './cart.component.html',
-  styleUrls: ['./cart.component.scss']
+export interface CartItem {
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image: string;
+  size?: string;
+  color?: string;
+}
+
+@Injectable({
+  providedIn: 'root'
 })
-export class CartComponent implements OnInit {
-  cartItems: CartItem[] = [];
+export class CartService {
+  // ✅ OBSERVABLES - NE PAS SUPPRIMER
+  private cartItemsSubject = new BehaviorSubject<CartItem[]>([]);
+  public cartItems$: Observable<CartItem[]> = this.cartItemsSubject.asObservable();
 
-  constructor(private cartService: CartService) {}
+  private cartCountSubject = new BehaviorSubject<number>(0);
+  public cartCount$: Observable<number> = this.cartCountSubject.asObservable();
 
-  ngOnInit(): void {
-    this.cartService.cart$.subscribe(items => {
-      this.cartItems = items;
-    });
+  constructor() {
+    this.loadCartFromStorage();
   }
 
-  // Méthode pour diminuer la quantité
-  decreaseQuantity(item: CartItem): void {
-    if (item.quantity > 1) {
-      this.updateQuantity(item, item.quantity - 1);
+  private loadCartFromStorage(): void {
+    try {
+      const saved = localStorage.getItem('cart');
+      if (saved) {
+        const items: CartItem[] = JSON.parse(saved);
+        this.cartItemsSubject.next(items);
+        this.updateCartCount();
+      }
+    } catch (error) {
+      console.error('Erreur chargement panier:', error);
     }
   }
 
-  // Méthode pour augmenter la quantité
-  increaseQuantity(item: CartItem): void {
-    this.updateQuantity(item, item.quantity + 1);
+  private saveCartToStorage(): void {
+    try {
+      localStorage.setItem('cart', JSON.stringify(this.cartItemsSubject.value));
+      this.updateCartCount();
+    } catch (error) {
+      console.error('Erreur sauvegarde panier:', error);
+    }
   }
 
-  // Méthode pour gérer le changement dans l'input
-  onQuantityChange(item: CartItem, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const quantity = parseInt(input.value, 10);
+  private updateCartCount(): void {
+    const count = this.cartItemsSubject.value.reduce((sum, item) => sum + item.quantity, 0);
+    this.cartCountSubject.next(count);
+  }
 
-    if (!isNaN(quantity) && quantity >= 1) {
-      this.updateQuantity(item, quantity);
+  addToCart(product: any, quantity: number = 1): void {
+    const items = [...this.cartItemsSubject.value];
+    const existingItem = items.find(item => item.productId === product._id);
+
+    if (existingItem) {
+      existingItem.quantity += quantity;
     } else {
-      // Réinitialiser à la valeur précédente
-      input.value = item.quantity.toString();
+      items.push({
+        productId: product._id,
+        name: product.name,
+        price: product.price,
+        quantity: quantity,
+        image: product.images?.[0]?.url || 'assets/placeholder.jpg'
+      });
     }
+
+    this.cartItemsSubject.next(items);
+    this.saveCartToStorage();
   }
 
-  // Méthode principale pour mettre à jour la quantité
-  updateQuantity(item: CartItem, quantity: number): void {
-    this.cartService.updateQuantity(item, quantity);
+  removeFromCart(productId: string): void {
+    const items = this.cartItemsSubject.value.filter(item => item.productId !== productId);
+    this.cartItemsSubject.next(items);
+    this.saveCartToStorage();
   }
 
-  removeItem(item: CartItem): void {
-    this.cartService.removeFromCart(item);
-  }
+  updateQuantity(productId: string, quantity: number): void {
+    if (quantity <= 0) {
+      this.removeFromCart(productId);
+      return;
+    }
 
-  getSubtotal(): number {
-    return this.cartService.getTotalPrice();
-  }
+    const items = [...this.cartItemsSubject.value];
+    const item = items.find(i => i.productId === productId);
 
-  getShippingCost(): number {
-    return this.cartItems.length > 0 ? 4.99 : 0;
-  }
-
-  getTotal(): number {
-    return this.getSubtotal() + this.getShippingCost();
+    if (item) {
+      item.quantity = quantity;
+      this.cartItemsSubject.next(items);
+      this.saveCartToStorage();
+    }
   }
 
   clearCart(): void {
-    this.cartService.clearCart();
+    this.cartItemsSubject.next([]);
+    this.saveCartToStorage();
   }
 
+  getCartItems(): CartItem[] {
+    return this.cartItemsSubject.value;
+  }
+
+  getCartCount(): number {
+    return this.cartCountSubject.value;
+  }
+
+  getCartTotal(): number {
+    return this.cartItemsSubject.value.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  }
 }
