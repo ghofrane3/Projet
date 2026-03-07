@@ -36,7 +36,14 @@ import { AuthService } from '../../../services/auth.service';
             <div class="section-title">ANALYSE</div>
             <a class="nav-link">☐ Statistiques</a>
             <a class="nav-link">☐ Inventaire</a>
+               <a routerLink="/admin/cache" routerLinkActive="active" class="nav-item">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+    </svg>
+    <span>Gestion Cache</span>
+  </a>
           </div>
+
 
           <div class="nav-section">
             <div class="section-title">PARAMÈTRES</div>
@@ -44,12 +51,14 @@ import { AuthService } from '../../../services/auth.service';
             <button (click)="logout()" class="nav-link">◆ Déconnexion</button>
           </div>
         </nav>
+
       </aside>
 
       <main class="content">
         <router-outlet></router-outlet>
       </main>
     </div>
+
   `,
   styles: [`
     .admin-container { display: flex; min-height: 100vh; }

@@ -132,6 +132,13 @@ export const routes: Routes = [
           .then(m => m.ProductFormComponent),
         title: 'Admin - Nouveau Produit'
       },
+      // app.routes.ts - Ajouter dans admin.children :
+{
+  path: 'cache',
+  loadComponent: () => import('./components/admin/cache-dashboard/cache-dashboard.component')
+    .then(m => m.CacheDashboardComponent),
+  title: 'Admin - Gestion Cache'
+}
 
     ]
   },

@@ -11,6 +11,7 @@ import productRoutes from './routes/product.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import adminRoutes from './routes/admin.js';
 import adminProductRoutes from './routes/admin.product.routes.js';
+import adminCacheRoutes from './routes/admin.cache.routes.js';  // ✅ NOUVEAU
 
 dotenv.config();
 
@@ -32,7 +33,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 
-app.use(cors(corsOptions));  // ✅ CORS appliqué globalement
+app.use(cors(corsOptions));
 
 // ════════════════════════════════════════════════════════════
 // MIDDLEWARE PARSING
@@ -57,6 +58,7 @@ app.get('/', (req, res) => {
       '✅ Cache 3 Niveaux (L1/L2/L3)',
       '✅ Redis + Mémoire',
       '✅ Invalidation Automatique',
+      '✅ Dashboard Admin Cache',
       '✅ Métriques Temps Réel'
     ]
   });
@@ -70,6 +72,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin', adminProductRoutes);
+app.use('/api/admin/cache', adminCacheRoutes);  // ✅ NOUVEAU
 
 // ════════════════════════════════════════════════════════════
 // 404 HANDLER
@@ -115,7 +118,7 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     console.log('\n🚀 ══════════════════════════════════════');
-    console.log('   Fashion Store - BACKEND API');
+    console.log('   MAISON ÉLITE - BACKEND API');
     console.log('🚀 ══════════════════════════════════════\n');
 
     // 1. Connexion MongoDB
@@ -131,10 +134,11 @@ const startServer = async () => {
       console.log('\n✅ ══════════════════════════════════════');
       console.log(`   Serveur démarré : http://localhost:${PORT}`);
       console.log(`   Uploads        : http://localhost:${PORT}/uploads`);
-      console.log(`   Cache Metrics  : http://localhost:${PORT}/api/products/admin/cache/metrics`);
+      console.log(`   Cache Stats    : http://localhost:${PORT}/api/admin/cache/stats`);
+      console.log(`   Dashboard      : http://localhost:4200/admin/cache`);
       console.log('✅ ══════════════════════════════════════\n');
       console.log('💡 Cache 3 niveaux actif (L1: Mémoire, L2: Redis, L3: MongoDB)');
-      console.log('💡 Métriques: GET /api/products/admin/cache/metrics\n');
+      console.log('💡 Dashboard admin disponible pour gérer le cache\n');
     });
 
   } catch (error) {
