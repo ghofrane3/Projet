@@ -1,0 +1,137 @@
+<div class="product-list-page">
+  <div class="container">
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- HEADER AVEC FILTRES -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <div class="page-header">
+      <h1>Boutique</h1>
+
+      <div class="filters">
+        <!-- Filtre catégories -->
+        <div class="category-filter">
+          <button
+            [class.active]="selectedCategory === 'all'"
+            (click)="filterByCategory('all')"
+            class="category-btn"
+          >
+            Tous
+          </button>
+          <button
+            *ngFor="let cat of categories"
+            [class.active]="selectedCategory === cat.name.toLowerCase()"
+            (click)="filterByCategory(cat.name.toLowerCase())"
+            class="category-btn"
+          >
+            {{ cat.name }}
+          </button>
+        </div>
+
+        <!-- Tri -->
+        <div class="sort-filter">
+          <select (change)="sortProducts($event)" class="sort-select">
+            <option value="default">Trier par</option>
+            <option value="price-low">Prix croissant</option>
+            <option value="price-high">Prix décroissant</option>
+            <option value="rating">Meilleures notes</option>
+            <option value="name-asc">Nom A-Z</option>
+            <option value="name-desc">Nom Z-A</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- LOADING -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <div *ngIf="loading" class="loading-container">
+      <div class="spinner"></div>
+      <p>Chargement des produits...</p>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- GRILLE DE PRODUITS -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <div *ngIf="!loading" class="product-grid">
+
+      <!-- Message si aucun produit -->
+      <div *ngIf="products.length === 0" class="no-products">
+        <p>😔 Aucun produit trouvé</p>
+      </div>
+
+      <!-- Cartes produits -->
+      <div *ngFor="let product of products" class="product-card">
+
+        <!-- Badges -->
+        <div class="product-badges">
+          <span *ngIf="hasDiscount(product)" class="badge discount">
+            -{{ getDiscountPercentage(product) }}%
+          </span>
+          <span *ngIf="isFeatured(product)" class="badge new">
+            Nouveau
+          </span>
+          <span *ngIf="!isInStock(product)" class="badge out-of-stock">
+            Rupture
+          </span>
+        </div>
+
+        <!-- Image -->
+        <div class="product-image" [routerLink]="['/products', getProductId(product)]">
+          <img [src]="getMainImage(product)" [alt]="product.name">
+          <div class="product-overlay">
+            <button class="quick-view" (click)="$event.stopPropagation()">
+              👁️ Aperçu
+            </button>
+          </div>
+        </div>
+
+        <!-- Info produit -->
+        <div class="product-info">
+          <h3 class="product-name" [routerLink]="['/products', getProductId(product)]">
+            {{ product.name }}
+          </h3>
+
+          <p class="product-brand" *ngIf="product.brand">
+            {{ product.brand }}
+          </p>
+
+          <p class="product-description" *ngIf="product.description">
+            {{ product.description.length > 60 ? (product.description | slice:0:60) + '...' : product.description }}
+          </p>
+
+          <!-- Prix -->
+          <div class="product-price">
+            <span *ngIf="hasDiscount(product)" class="old-price">
+              {{ product.originalPrice || product.price }}€
+            </span>
+            <span class="current-price">
+              {{ product.discountPrice || product.price }}€
+            </span>
+          </div>
+
+          <!-- Métadonnées -->
+          <div class="product-meta">
+            <div class="rating" *ngIf="product.rating">
+              ⭐ {{ product.rating }}
+              <span *ngIf="product.reviews">({{ product.reviews }})</span>
+            </div>
+            <div class="sizes" *ngIf="product.sizes && product.sizes.length > 0">
+              Tailles: {{ product.sizes.slice(0, 3).join(', ') }}
+              <span *ngIf="product.sizes.length > 3">...</span>
+            </div>
+          </div>
+
+          <!-- Bouton ajouter au panier -->
+          <button
+            (click)="addToCart(product)"
+            class="add-to-cart-btn"
+            [disabled]="!isInStock(product)"
+          >
+            <span *ngIf="isInStock(product)">🛒 Ajouter au panier</span>
+            <span *ngIf="!isInStock(product)">😔 Rupture de stock</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

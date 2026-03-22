@@ -1,4 +1,3 @@
-// auth.service.ts - CORRIGÉ
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject, throwError } from 'rxjs';
@@ -7,26 +6,15 @@ import { Router } from '@angular/router';
 
 interface AuthResponse {
   success: boolean;
-  accessToken: string;
-  refreshToken: string;
+  message?: string;
   user: {
     id: string;
     name: string;
     email: string;
     role: string;
+    isVerified: boolean;
   };
-  message?: string;
-}
-
-interface RefreshResponse {
-  success: boolean;
-  accessToken: string;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
+  needsVerification?: boolean;
 }
 
 @Injectable({
@@ -34,239 +22,177 @@ interface RefreshResponse {
 })
 export class AuthService {
   private apiUrl = 'http://localhost:5000/api/auth';
-  private currentUserSubject = new BehaviorSubject<any>(this.getCurrentUser());
-  public currentUser$ = this.currentUserSubject.asObservable();
 
-  private refreshTokenTimeout?: any;
+  private currentUserSubject = new BehaviorSubject<any>(null);
+  public currentUser$ = this.currentUserSubject.asObservable();
 
   constructor(
     private http: HttpClient,
     private router: Router
   ) {
-    if (this.getAccessToken()) {
-      this.startRefreshTokenTimer();
-    }
+    this.checkAuthStatus();
   }
 
-  /**
-   * Inscription d'un nouvel utilisateur
-   */
-  register(userData: { name: string; email: string; password: string }): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/register`, userData).pipe(
-      catchError(error => {
-        console.error('Erreur d\'inscription:', error);
-        return throwError(() => error);
-      })
-    );
-    // ✅ NOTE : on ne stocke plus le token ici car l'utilisateur doit d'abord vérifier son email
-  }
+  // ════════════════════════════════════════════════════════════
+  // VÉRIFICATION DE L'AUTHENTIFICATION
+  // ════════════════════════════════════════════════════════════
 
-  /**
-   * Connexion d'un utilisateur
-   */
-  login(credentials: { email: string; password: string }): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/login`, credentials).pipe(
-      tap(response => {
-        if (response.success) {
-          this.storeAuthData(response.accessToken, response.refreshToken, response.user);
-          this.startRefreshTokenTimer();
+  checkAuthStatus(): void {
+    this.http.get<any>(`${this.apiUrl}/me`, {
+      withCredentials: true
+    }).subscribe({
+      next: (response) => {
+        if (response.success && response.user) {
+          this.currentUserSubject.next(response.user);
+          console.log('✅ Utilisateur authentifié:', response.user.email);
+        } else {
+          this.currentUserSubject.next(null);
         }
-      }),
-      catchError(error => {
-        console.error('Erreur de connexion:', error);
-        return throwError(() => error);
-      })
-    );
-  }
-
-  /**
-   * ✅ AJOUTÉ : Renvoyer l'email de vérification
-   */
-  resendVerification(email: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/resend-verification`, { email }).pipe(
-      catchError(error => {
-        console.error('Erreur renvoi vérification:', error);
-        return throwError(() => error);
-      })
-    );
-  }
-
-  /**
-   * Déconnexion de l'utilisateur
-   */
-  logout(): Observable<any> {
-    const refreshToken = this.getRefreshToken();
-    this.stopRefreshTokenTimer();
-    this.clearAuthData();
-
-    if (refreshToken) {
-      return this.http.post(`${this.apiUrl}/logout`, { refreshToken }).pipe(
-        tap(() => {
-          this.router.navigate(['/login']);
-        }),
-        catchError(error => {
-          console.error('Erreur de déconnexion:', error);
-          this.router.navigate(['/login']);
-          return throwError(() => error);
-        })
-      );
-    }
-
-    this.router.navigate(['/login']);
-    return new Observable(observer => {
-      observer.next({ success: true });
-      observer.complete();
+      },
+      error: () => {
+        this.currentUserSubject.next(null);
+      }
     });
   }
 
-  /**
-   * Rafraîchir l'access token
-   */
-  refreshToken(): Observable<RefreshResponse> {
-    const refreshToken = this.getRefreshToken();
+  // ════════════════════════════════════════════════════════════
+  // INSCRIPTION
+  // ════════════════════════════════════════════════════════════
 
-    if (!refreshToken) {
-      console.error('Pas de refresh token disponible');
-      this.clearAuthData();
-      this.router.navigate(['/login']);
-      return throwError(() => new Error('No refresh token'));
-    }
-
-    return this.http.post<RefreshResponse>(`${this.apiUrl}/refresh`, { refreshToken }).pipe(
+  register(userData: { name: string; email: string; password: string }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/register`, userData, {
+      withCredentials: true
+    }).pipe(
       tap(response => {
         if (response.success) {
-          localStorage.setItem('accessToken', response.accessToken);
-          if (response.user) {
-            localStorage.setItem('user', JSON.stringify(response.user));
-            this.currentUserSubject.next(response.user);
-          }
-          this.startRefreshTokenTimer();
-          console.log('✅ Token rafraîchi avec succès');
+          console.log('✅ Inscription réussie');
         }
       }),
       catchError(error => {
-        console.error('❌ Erreur de rafraîchissement du token:', error);
-        this.clearAuthData();
-        this.router.navigate(['/login']);
+        console.error('❌ Erreur inscription:', error);
         return throwError(() => error);
       })
     );
   }
 
-  /**
-   * Stocker les données d'authentification
-   */
-  private storeAuthData(accessToken: string, refreshToken: string, user: any): void {
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
-    this.currentUserSubject.next(user);
-    console.log('✅ Données d\'authentification stockées');
+  resendVerification(email: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/resend-verification`,
+      { email },
+      { withCredentials: true }
+    ).pipe(
+      catchError(error => {
+        console.error('❌ Erreur renvoi vérification:', error);
+        return throwError(() => error);
+      })
+    );
   }
 
-  /**
-   * Effacer les données d'authentification
-   */
-  private clearAuthData(): void {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    this.currentUserSubject.next(null);
-    console.log('🗑️ Données d\'authentification effacées');
+  // ════════════════════════════════════════════════════════════
+  // CONNEXION
+  // ════════════════════════════════════════════════════════════
+
+  login(credentials: { email: string; password: string }): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/login`, credentials, {
+      withCredentials: true
+    }).pipe(
+      tap(response => {
+        if (response.success && response.user) {
+          this.currentUserSubject.next(response.user);
+          console.log('✅ Connexion réussie:', response.user.email);
+        }
+      }),
+      catchError(error => {
+        console.error('❌ Erreur connexion:', error);
+        return throwError(() => error);
+      })
+    );
   }
 
-  getAccessToken(): string | null {
-    return localStorage.getItem('accessToken');
+  // ════════════════════════════════════════════════════════════
+  // DÉCONNEXION
+  // ════════════════════════════════════════════════════════════
+
+  logout(): Observable<any> {
+    return this.http.post(`${this.apiUrl}/logout`, {}, {
+      withCredentials: true
+    }).pipe(
+      tap(() => {
+        this.currentUserSubject.next(null);
+        console.log('✅ Déconnexion réussie');
+        this.router.navigate(['/auth/login']);
+      }),
+      catchError(error => {
+        console.error('❌ Erreur déconnexion:', error);
+        this.currentUserSubject.next(null);
+        this.router.navigate(['/auth/login']);
+        return throwError(() => error);
+      })
+    );
   }
 
-  getRefreshToken(): string | null {
-    return localStorage.getItem('refreshToken');
-  }
+  // ════════════════════════════════════════════════════════════
+  // GETTERS
+  // ════════════════════════════════════════════════════════════
 
   getCurrentUser(): any {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    return this.currentUserSubject.value;
   }
 
   isAuthenticated(): boolean {
-    const token = this.getAccessToken();
-    const isAuth = !!token;
-    console.log('🔐 isAuthenticated:', isAuth);
-    return isAuth;
+    return this.currentUserSubject.value !== null;
   }
 
   isLoggedIn(): boolean {
     return this.isAuthenticated();
   }
 
-  /**
-   * Mettre à jour le profil utilisateur
-   */
-  updateProfile(profileData: { name?: string; email?: string; password?: string }): boolean {
-    try {
-      const currentUser = this.getCurrentUser();
-      if (!currentUser) {
-        console.error('Aucun utilisateur connecté');
-        return false;
-      }
-      const updatedUser = { ...currentUser, ...profileData };
-      if ('password' in updatedUser) {
-        delete updatedUser.password;
-      }
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-      this.currentUserSubject.next(updatedUser);
-      console.log('✅ Profil mis à jour localement');
-      return true;
-    } catch (error) {
-      console.error('❌ Erreur de mise à jour du profil:', error);
-      return false;
-    }
-  }
-
   isAdmin(): boolean {
-    const user = this.getCurrentUser();
+    const user = this.currentUserSubject.value;
     return user && user.role === 'admin';
   }
 
-  isTokenExpired(): boolean {
-    const token = this.getAccessToken();
-    if (!token) return true;
-    try {
-      const jwtToken = JSON.parse(atob(token.split('.')[1]));
-      const expires = new Date(jwtToken.exp * 1000);
-      return new Date() >= expires;
-    } catch {
-      return true;
-    }
+  // ════════════════════════════════════════════════════════════
+  // MÉTHODES DE COMPATIBILITÉ (pour ne pas casser l'ancien code)
+  // ════════════════════════════════════════════════════════════
+
+  /**
+   * ⚠️ DEPRECATED : Cette méthode existe pour compatibilité
+   * Les tokens sont maintenant dans des cookies httpOnly
+   * Cette méthode retourne toujours null
+   */
+  getAccessToken(): string | null {
+    console.warn('⚠️ getAccessToken() est obsolète. Les tokens sont dans des cookies httpOnly.');
+    return null;
   }
 
-  private startRefreshTokenTimer(): void {
-    const accessToken = this.getAccessToken();
-    if (!accessToken) return;
-
-    try {
-      const jwtToken = JSON.parse(atob(accessToken.split('.')[1]));
-      const expires = new Date(jwtToken.exp * 1000);
-      const timeout = expires.getTime() - Date.now() - 60000;
-
-      if (timeout > 0) {
-        this.refreshTokenTimeout = setTimeout(() => {
-          this.refreshToken().subscribe({
-            next: () => console.log('✅ Token rafraîchi automatiquement'),
-            error: (err) => console.error('❌ Erreur rafraîchissement auto:', err)
-          });
-        }, timeout);
-      } else {
-        this.refreshToken().subscribe();
-      }
-    } catch (error) {
-      console.error('❌ Erreur décodage token:', error);
-    }
+  /**
+   * ⚠️ DEPRECATED : Cette méthode existe pour compatibilité
+   * Les tokens sont maintenant dans des cookies httpOnly
+   * Cette méthode retourne toujours null
+   */
+  getRefreshToken(): string | null {
+    console.warn('⚠️ getRefreshToken() est obsolète. Les tokens sont dans des cookies httpOnly.');
+    return null;
   }
 
-  private stopRefreshTokenTimer(): void {
-    if (this.refreshTokenTimeout) {
-      clearTimeout(this.refreshTokenTimeout);
-    }
+  /**
+   * Mettre à jour le profil utilisateur
+   */
+  updateProfile(profileData: { name?: string; email?: string; password?: string }): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/profile`, profileData, {
+      withCredentials: true
+    }).pipe(
+      tap(response => {
+        if (response.success && response.user) {
+          // Mettre à jour l'utilisateur local
+          this.currentUserSubject.next(response.user);
+          console.log('✅ Profil mis à jour');
+        }
+      }),
+      catchError(error => {
+        console.error('❌ Erreur mise à jour profil:', error);
+        return throwError(() => error);
+      })
+    );
   }
 }

@@ -22,12 +22,9 @@ interface Order {
   styleUrls: ['./account.component.scss']
 })
 export class AccountComponent implements OnInit {
-  activeTab = 'profile'; // profile, orders, wishlist, settings
-
-  // User info
+  activeTab = 'profile';
   user: any = null;
 
-  // Profile form
   profileForm = {
     firstName: '',
     lastName: '',
@@ -38,24 +35,20 @@ export class AccountComponent implements OnInit {
     postalCode: ''
   };
 
-  // Security form
   securityForm = {
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   };
 
-  // Orders
   orders: Order[] = [];
 
-  // Stats
   stats = {
     totalOrders: 0,
     totalSpent: 0,
     wishlistCount: 0
   };
 
-  // States
   loading = false;
   saving = false;
   error = '';
@@ -68,14 +61,23 @@ export class AccountComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    // ✅ VÉRIFIER SI L'UTILISATEUR EST ADMIN
+    this.user = this.authService.getCurrentUser();
+
+    if (this.user && this.user.role === 'admin') {
+      // Rediriger l'admin vers son dashboard
+      console.log('👤 Admin détecté → Redirection vers dashboard');
+      this.router.navigate(['/admin/dashboard']);
+      return;
+    }
+
+    // Continuer normalement pour les utilisateurs standards
     this.loadUserData();
     this.loadOrders();
     this.loadStats();
   }
 
   loadUserData(): void {
-    this.user = this.authService.getCurrentUser();
-
     if (this.user) {
       const [firstName, ...lastNameParts] = this.user.name.split(' ');
       this.profileForm = {
@@ -93,40 +95,42 @@ export class AccountComponent implements OnInit {
   loadOrders(): void {
     this.loading = true;
 
-    this.http.get<any>('http://localhost:5000/api/orders/my-orders')
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            this.orders = response.orders.map((order: any) => ({
-              _id: order._id,
-              orderNumber: `#ME-${order._id.slice(-8)}`,
-              date: this.formatDate(order.createdAt),
-              total: order.totalAmount,
-              status: this.translateStatus(order.status),
-              items: order.items.length
-            }));
-          }
-          this.loading = false;
-        },
-        error: (error) => {
-          console.error('Erreur chargement commandes:', error);
-          this.loading = false;
+    this.http.get<any>('http://localhost:5000/api/orders/my-orders', {
+      withCredentials: true // ✅ AJOUTER
+    }).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.orders = response.orders.map((order: any) => ({
+            _id: order._id,
+            orderNumber: `#ME-${order._id.slice(-8)}`,
+            date: this.formatDate(order.createdAt),
+            total: order.totalAmount,
+            status: this.translateStatus(order.status),
+            items: order.items.length
+          }));
         }
-      });
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('❌ Erreur chargement commandes:', error);
+        this.loading = false;
+      }
+    });
   }
 
   loadStats(): void {
-    this.http.get<any>('http://localhost:5000/api/users/stats')
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            this.stats = response.stats;
-          }
-        },
-        error: (error) => {
-          console.error('Erreur chargement stats:', error);
+    this.http.get<any>('http://localhost:5000/api/users/stats', {
+      withCredentials: true // ✅ AJOUTER
+    }).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.stats = response.stats;
         }
-      });
+      },
+      error: (error) => {
+        console.error('❌ Erreur chargement stats:', error);
+      }
+    });
   }
 
   setActiveTab(tab: string): void {
@@ -148,20 +152,23 @@ export class AccountComponent implements OnInit {
       postalCode: this.profileForm.postalCode
     };
 
-    this.http.put('http://localhost:5000/api/users/profile', updatedData)
-      .subscribe({
-        next: (response: any) => {
-          this.success = 'Profil mis à jour avec succès !';
-          this.saving = false;
+    this.http.put('http://localhost:5000/api/users/profile', updatedData, {
+      withCredentials: true // ✅ AJOUTER
+    }).subscribe({
+      next: (response: any) => {
+        this.success = 'Profil mis à jour avec succès !';
+        this.saving = false;
 
-          // Mettre à jour les données locales
-          this.authService.updateProfile(updatedData);
-        },
-        error: (error) => {
-          this.error = 'Erreur lors de la mise à jour';
-          this.saving = false;
+        // Mettre à jour les données locales
+        if (this.authService.updateProfile) {
+          this.authService.updateProfile(updatedData).subscribe();
         }
-      });
+      },
+      error: (error) => {
+        this.error = 'Erreur lors de la mise à jour';
+        this.saving = false;
+      }
+    });
   }
 
   onSecuritySubmit(): void {
@@ -182,6 +189,8 @@ export class AccountComponent implements OnInit {
     this.http.put('http://localhost:5000/api/users/password', {
       currentPassword: this.securityForm.currentPassword,
       newPassword: this.securityForm.newPassword
+    }, {
+      withCredentials: true // ✅ AJOUTER
     }).subscribe({
       next: () => {
         this.success = 'Mot de passe modifié avec succès !';
@@ -201,8 +210,8 @@ export class AccountComponent implements OnInit {
 
   logout(): void {
     this.authService.logout().subscribe({
-      next: () => this.router.navigate(['/login']),
-      error: () => this.router.navigate(['/login'])
+      next: () => this.router.navigate(['/auth/login']),
+      error: () => this.router.navigate(['/auth/login'])
     });
   }
 

@@ -184,7 +184,7 @@ router.post('/resend-verification', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// CONNEXION (avec vérification)
+// CONNEXION AVEC COOKIES (SÉCURISÉ)
 // POST /api/auth/login
 // ═══════════════════════════════════════════════════════════
 router.post('/login', async (req, res) => {
@@ -192,6 +192,15 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     console.log('🔐 Connexion:', email);
 
+    // Validation
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email et mot de passe requis'
+      });
+    }
+
+    // Trouver l'utilisateur
     const user = await User.findOne({ email });
 
     if (!user || !(await user.comparePassword(password))) {
@@ -202,7 +211,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Vérifier si le compte est vérifié
+    // Vérifier si le compte est vérifié (sauf pour admin)
     if (!user.isVerified && user.role !== 'admin') {
       console.log('⚠️ Compte non vérifié');
       return res.status(403).json({
@@ -213,36 +222,56 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Générer tokens
+    // ✅ Générer Access Token (courte durée)
     const accessToken = jwt.sign(
-      { userId: user._id, role: user.role },
+      {
+        userId: user._id,
+        role: user.role,
+        email: user.email
+      },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
     );
 
+    // ✅ Générer Refresh Token (longue durée)
     const refreshToken = jwt.sign(
       { userId: user._id },
       process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d' }
     );
 
-    // Sauvegarder refresh token
+    // Sauvegarder refresh token en DB
     await RefreshToken.create({
       token: refreshToken,
       userId: user._id,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     });
 
+    // Mettre à jour la date de dernière connexion
     user.lastLogin = new Date();
     await user.save();
 
-    console.log('✅ Connexion réussie');
+    // ✅ NOUVEAU : Envoyer les tokens dans des httpOnly cookies
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,  // Pas accessible via JavaScript (protection XSS)
+      secure: process.env.NODE_ENV === 'production', // HTTPS seulement en production
+      sameSite: 'strict', // Protection CSRF
+      maxAge: 60 * 60 * 1000 // 1 heure en millisecondes
+    });
 
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 jours en millisecondes
+    });
+
+    console.log('✅ Connexion réussie avec cookies sécurisés');
+
+    // ✅ Envoyer SEULEMENT les données utilisateur (PAS les tokens)
     res.json({
       success: true,
       message: 'Connexion réussie',
-      accessToken,
-      refreshToken,
       user: {
         id: user._id,
         name: user.name,
@@ -262,51 +291,88 @@ router.post('/login', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// REFRESH TOKEN
+// REFRESH TOKEN (avec cookies)
 // POST /api/auth/refresh
 // ═══════════════════════════════════════════════════════════
 router.post('/refresh', async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    // ✅ Lire le refresh token depuis le cookie
+    const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-      return res.status(401).json({ success: false, message: 'Refresh token requis' });
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token manquant'
+      });
     }
 
-    const tokenRecord = await RefreshToken.findOne({ token: refreshToken, isRevoked: false });
+    // Vérifier que le token existe en DB et n'est pas révoqué
+    const tokenRecord = await RefreshToken.findOne({
+      token: refreshToken,
+      isRevoked: false
+    });
 
     if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
-      return res.status(403).json({ success: false, message: 'Refresh token invalide' });
+      return res.status(403).json({
+        success: false,
+        message: 'Refresh token invalide ou expiré'
+      });
     }
 
+    // Vérifier la signature du token
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     const user = await User.findById(decoded.userId);
 
     if (!user || (!user.isVerified && user.role !== 'admin')) {
-      return res.status(403).json({ success: false, message: 'Utilisateur non valide' });
+      return res.status(403).json({
+        success: false,
+        message: 'Utilisateur non valide'
+      });
     }
 
+    // ✅ Générer nouveau access token
     const accessToken = jwt.sign(
-      { userId: user._id, role: user.role },
+      {
+        userId: user._id,
+        role: user.role,
+        email: user.email
+      },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
     );
 
-    res.json({ success: true, accessToken });
+    // ✅ Envoyer le nouveau token dans un cookie
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 1000 // 1 heure
+    });
+
+    res.json({
+      success: true,
+      message: 'Token rafraîchi avec succès'
+    });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
+    console.error('❌ Erreur refresh:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur'
+    });
   }
 });
 
 // ═══════════════════════════════════════════════════════════
-// LOGOUT
+// LOGOUT (avec cookies)
 // POST /api/auth/logout
 // ═══════════════════════════════════════════════════════════
 router.post('/logout', authenticateUser, async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    // ✅ Lire le refresh token depuis le cookie
+    const refreshToken = req.cookies.refreshToken;
 
+    // Révoquer le refresh token en DB
     if (refreshToken) {
       await RefreshToken.updateOne(
         { token: refreshToken },
@@ -314,22 +380,58 @@ router.post('/logout', authenticateUser, async (req, res) => {
       );
     }
 
-    res.json({ success: true, message: 'Déconnexion réussie' });
+    // ✅ Supprimer les cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+
+    console.log('✅ Déconnexion réussie');
+
+    res.json({
+      success: true,
+      message: 'Déconnexion réussie'
+    });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
+    console.error('❌ Erreur logout:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur'
+    });
   }
 });
 
 // ═══════════════════════════════════════════════════════════
-// GET USER INFO
+// GET USER INFO (avec cookies)
 // GET /api/auth/me
 // ═══════════════════════════════════════════════════════════
 router.get('/me', authenticateUser, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('-password');
-    res.json({ success: true, user });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified
+      }
+    });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
+    console.error('❌ Erreur /me:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur'
+    });
   }
 });
 

@@ -10,137 +10,97 @@ export const routes: Routes = [
     path: '',
     loadComponent: () => import('./components/home/home.component')
       .then(m => m.HomeComponent),
-    title: 'Fashion Store - Accueil'
+    title: 'Maison Élite - Accueil'
   },
+
+  // ════════════════════════════════════════════════════════════
+  // AUTH MODULE (Lazy Loaded)
+  // ════════════════════════════════════════════════════════════
+  {
+    path: 'auth',
+    loadChildren: () => import('./features/auth/auth.module')
+      .then(m => m.AuthModule)
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // ANCIEN ROUTES AUTH (Compatibilité)
+  // ════════════════════════════════════════════════════════════
   {
     path: 'login',
-    loadComponent: () => import('./components/auth/login.component')
-      .then(m => m.LoginComponent),
-    title: 'Fashion Store - Connexion'
+    redirectTo: 'auth/login',
+    pathMatch: 'full'
   },
   {
     path: 'register',
-    loadComponent: () => import('./components/auth/register/register.component')
-      .then(m => m.RegisterComponent),
-    title: 'Fashion Store - Inscription'
+    redirectTo: 'auth/register',
+    pathMatch: 'full'
   },
   {
     path: 'verify-email',
-    loadComponent: () => import('./components/auth/verify-email/verify-email.component')
-      .then(m => m.VerifyEmailComponent),
-    title: 'Fashion Store - Vérification Email'
+    redirectTo: 'auth/verify-email',
+    pathMatch: 'full'
   },
 
   // ════════════════════════════════════════════════════════════
-  // BOUTIQUE - ORDRE CRUCIAL !
+  // PRODUCTS MODULE (Lazy Loaded)
   // ════════════════════════════════════════════════════════════
-
-  // ✅ 1. DÉTAIL PRODUIT (DOIT ÊTRE AVANT /products)
-  {
-    path: 'products/:id',
-    loadComponent: () => import('./components/product-detail/product-detail.component')
-      .then(m => m.ProductDetailComponent),
-    title: 'Fashion Store - Détail Produit'
-  },
-
-  // ✅ 2. LISTE PRODUITS (APRÈS le détail)
   {
     path: 'products',
-    loadComponent: () => import('./components/category/category.component')
-      .then(m => m.CategoryComponent),
-    title: 'Fashion Store - Boutique'
-  },
-
-  // ✅ 3. CATÉGORIE
-  {
-    path: 'category/:subcategory',
-    loadComponent: () => import('./components/category/category.component')
-      .then(m => m.CategoryComponent),
-    title: 'Fashion Store - Catégorie'
+    loadChildren: () => import('./features/products/products.module')
+      .then(m => m.ProductsModule)
   },
 
   // ════════════════════════════════════════════════════════════
-  // PANIER & COMMANDE
+  // CATÉGORIES (Redirection vers products)
+  // ════════════════════════════════════════════════════════════
+  {
+    path: 'category/:subcategory',
+    redirectTo: 'products/category/:subcategory',
+    pathMatch: 'full'
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // CART MODULE (Lazy Loaded)
   // ════════════════════════════════════════════════════════════
   {
     path: 'cart',
-    loadComponent: () => import('./components/cart/cart.component')
-      .then(m => m.CartService), // ✅ CORRIGÉ : CartComponent au lieu de CartService
-    title: 'Fashion Store - Panier'
-  },
-  {
-    path: 'checkout',
-    loadComponent: () => import('./components/checkout/checkout.component')
-      .then(m => m.CheckoutComponent),
-    canActivate: [authGuard],
-    title: 'Fashion Store - Paiement'
-  },
-  {
-    path: 'order-confirmation',
-    loadComponent: () => import('./components/order-confirmation/order-confirmation.component')
-      .then(m => m.OrderConfirmationComponent),
-    canActivate: [authGuard],
-    title: 'Fashion Store - Confirmation'
+    loadChildren: () => import('./features/cart/cart.module')
+      .then(m => m.CartModule)
   },
 
   // ════════════════════════════════════════════════════════════
-  // COMPTE CLIENT
+  // ANCIEN ROUTES CART (Compatibilité)
+  // ════════════════════════════════════════════════════════════
+  {
+    path: 'checkout',
+    redirectTo: 'cart/checkout',
+    pathMatch: 'full'
+  },
+  {
+    path: 'order-confirmation',
+    redirectTo: 'cart/confirmation',
+    pathMatch: 'full'
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // COMPTE CLIENT (Standalone)
   // ════════════════════════════════════════════════════════════
   {
     path: 'account',
     loadComponent: () => import('./components/account/account.component')
       .then(m => m.AccountComponent),
     canActivate: [authGuard],
-    title: 'Fashion Store - Mon Compte'
+    title: 'Maison Élite - Mon Compte'
   },
 
   // ════════════════════════════════════════════════════════════
-  // ADMIN AVEC SIDEBAR
+  // ADMIN MODULE (Lazy Loaded avec Guards)
   // ════════════════════════════════════════════════════════════
   {
     path: 'admin',
-    canActivate: [adminGuard],
-    loadComponent: () => import('./components/admin/admin-layout/admin-layout.component')
-      .then(m => m.AdminLayoutComponent),
-    children: [
-      {
-        path: '',
-        redirectTo: 'dashboard',
-        pathMatch: 'full'
-      },
-      {
-        path: 'dashboard',
-        loadComponent: () => import('./components/admin/dashboard/dashboard.component')
-          .then(m => m.DashboardComponent),
-        title: 'Admin - Tableau de bord'
-      },
-      {
-        path: 'users',
-        loadComponent: () => import('./components/admin/users-management/users-management.component')
-          .then(m => m.UsersManagementComponent),
-        title: 'Admin - Gestion Utilisateurs'
-      },
-      {
-        path: 'products',
-        loadComponent: () => import('./components/product-list/product-list.component')
-          .then(m => m.ProductListComponent),
-        title: 'Admin - Produits'
-      },
-      {
-        path: 'products/new',
-        loadComponent: () => import('./components/admin/product-form/product-form.component')
-          .then(m => m.ProductFormComponent),
-        title: 'Admin - Nouveau Produit'
-      },
-      // app.routes.ts - Ajouter dans admin.children :
-{
-  path: 'cache',
-  loadComponent: () => import('./components/admin/cache-dashboard/cache-dashboard.component')
-    .then(m => m.CacheDashboardComponent),
-  title: 'Admin - Gestion Cache'
-}
-
-    ]
+    loadChildren: () => import('./features/admin/admin.module')
+      .then(m => m.AdminModule),
+    canActivate: [authGuard, adminGuard]
   },
 
   // ════════════════════════════════════════════════════════════
@@ -148,6 +108,7 @@ export const routes: Routes = [
   // ════════════════════════════════════════════════════════════
   {
     path: '**',
-    redirectTo: ''
+    redirectTo: '',
+    pathMatch: 'full'
   }
 ];
