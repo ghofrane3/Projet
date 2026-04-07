@@ -2,6 +2,8 @@ import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { CartService, CartItem } from '../../services/cart.service';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 @Component({
   selector: 'app-header',
@@ -13,6 +15,13 @@ export class HeaderComponent implements OnInit {
   cartOpen = false;
   cartItemsCount = 0;
   cartItems: CartItem[] = [];
+
+  // ════════════════════════════════════════════════════════════
+  // SEARCH
+  // ════════════════════════════════════════════════════════════
+  searchOpen = false;
+  searchQuery = '';
+  private searchSubject = new Subject<string>();
 
   constructor(
     public authService: AuthService,
@@ -32,12 +41,67 @@ export class HeaderComponent implements OnInit {
       this.cartItems = items;
       console.log('📦 Items:', items);
     });
+
+    // Debounce recherche
+    this.searchSubject.pipe(
+      debounceTime(400),
+      distinctUntilChanged()
+    ).subscribe(query => {
+      if (query.trim()) {
+        this.router.navigate(['/products'], { queryParams: { search: query.trim() } });
+      }
+    });
   }
 
   @HostListener('window:scroll', [])
   onWindowScroll() {
     this.isScrolled = window.scrollY > 20;
   }
+
+  // ════════════════════════════════════════════════════════════
+  // SEARCH METHODS
+  // ════════════════════════════════════════════════════════════
+
+  toggleSearch() {
+    this.searchOpen = !this.searchOpen;
+    if (this.searchOpen) {
+      setTimeout(() => {
+        const input = document.querySelector('.search-input') as HTMLInputElement;
+        if (input) input.focus();
+      }, 100);
+    } else {
+      this.searchQuery = '';
+    }
+  }
+
+  closeSearch() {
+    this.searchOpen = false;
+    this.searchQuery = '';
+  }
+
+  onSearchInput(event: Event) {
+    const value = (event.target as HTMLInputElement).value;
+    this.searchQuery = value;
+    this.searchSubject.next(value);
+  }
+
+  onSearchSubmit(event: Event) {
+    event.preventDefault();
+    if (this.searchQuery.trim()) {
+      this.router.navigate(['/products'], { queryParams: { search: this.searchQuery.trim() } });
+      this.closeSearch();
+    }
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey() {
+    if (this.searchOpen) this.closeSearch();
+    if (this.cartOpen) this.closeCart();
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // CART
+  // ════════════════════════════════════════════════════════════
 
   toggleCart() {
     this.cartOpen = !this.cartOpen;
@@ -48,10 +112,6 @@ export class HeaderComponent implements OnInit {
     this.cartOpen = false;
     document.body.style.overflow = '';
   }
-
-  // ════════════════════════════════════════════════════════════
-  // ✅ SUPPRIMER (AVEC .subscribe())
-  // ════════════════════════════════════════════════════════════
 
   removeFromCart(productId: string) {
     console.log('🗑️ Supprimer:', productId);
@@ -66,10 +126,6 @@ export class HeaderComponent implements OnInit {
       }
     });
   }
-
-  // ════════════════════════════════════════════════════════════
-  // ✅ METTRE À JOUR LA QUANTITÉ (AVEC .subscribe())
-  // ════════════════════════════════════════════════════════════
 
   updateQuantity(productId: string, quantity: number) {
     console.log('🔄 Mettre à jour:', productId, 'Quantité:', quantity);
@@ -90,26 +146,14 @@ export class HeaderComponent implements OnInit {
     });
   }
 
-  // ════════════════════════════════════════════════════════════
-  // TOTAL DU PANIER
-  // ════════════════════════════════════════════════════════════
-
   getCartTotal(): number {
     return this.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   }
-
-  // ════════════════════════════════════════════════════════════
-  // NAVIGATION
-  // ════════════════════════════════════════════════════════════
 
   goToCheckout() {
     this.closeCart();
     this.router.navigate(['/cart/checkout']);
   }
-
-  // ════════════════════════════════════════════════════════════
-  // DÉCONNEXION (AVEC .subscribe())
-  // ════════════════════════════════════════════════════════════
 
   logout() {
     this.authService.logout().subscribe({
@@ -122,10 +166,6 @@ export class HeaderComponent implements OnInit {
       }
     });
   }
-
-  // ════════════════════════════════════════════════════════════
-  // GETTERS
-  // ════════════════════════════════════════════════════════════
 
   get isAuthenticated(): boolean {
     return this.authService.isAuthenticated();

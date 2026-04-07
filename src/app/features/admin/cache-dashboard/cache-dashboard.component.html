@@ -4,11 +4,7 @@
   <div class="dashboard-header">
     <h1 class="title">Gestion du Cache Redis</h1>
     <div class="header-actions">
-      <button
-        class="btn btn-refresh"
-        [class.active]="autoRefresh"
-        (click)="toggleAutoRefresh()"
-      >
+      <button class="btn btn-refresh" [class.active]="autoRefresh" (click)="toggleAutoRefresh()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <polyline points="1 4 1 10 7 10"/>
           <polyline points="23 20 23 14 17 14"/>
@@ -16,21 +12,15 @@
         </svg>
         {{ autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF' }}
       </button>
-      <button class="btn btn-primary" (click)="loadStats()">
-        🔄 Actualiser
-      </button>
+      <button class="btn btn-primary" (click)="loadStats()">🔄 Actualiser</button>
     </div>
   </div>
 
   <!-- Message -->
-  <div class="alert" [ngClass]="'alert-' + messageType" *ngIf="message">
-    {{ message }}
-  </div>
+  <div class="alert" [ngClass]="'alert-' + messageType" *ngIf="message">{{ message }}</div>
 
-  <!-- Stats Cards -->
+  <!-- Stats Cards existantes -->
   <div class="stats-grid" *ngIf="stats && redisInfo">
-
-    <!-- Card Redis Info -->
     <div class="stat-card">
       <div class="stat-icon">🔴</div>
       <div class="stat-content">
@@ -39,8 +29,6 @@
         <div class="stat-meta">Uptime</div>
       </div>
     </div>
-
-    <!-- Card Total Keys -->
     <div class="stat-card">
       <div class="stat-icon">🔑</div>
       <div class="stat-content">
@@ -49,8 +37,6 @@
         <div class="stat-meta">En cache</div>
       </div>
     </div>
-
-    <!-- Card Memory -->
     <div class="stat-card">
       <div class="stat-icon">💾</div>
       <div class="stat-content">
@@ -59,8 +45,6 @@
         <div class="stat-meta">{{ stats.totalSizeKB }} KB</div>
       </div>
     </div>
-
-    <!-- Card Redis Memory -->
     <div class="stat-card">
       <div class="stat-icon">📊</div>
       <div class="stat-content">
@@ -69,13 +53,147 @@
         <div class="stat-meta">Total</div>
       </div>
     </div>
-
   </div>
 
-  <!-- Actions rapides -->
+  <!-- ══════════════════════════════════════════════════════
+       SECTION MÉTRIQUES — NOUVEAU
+       ══════════════════════════════════════════════════════ -->
+  <div class="metrics-section">
+
+    <div class="metrics-header">
+      <h2 class="section-title">
+        <span>📈</span> Performance du Cache
+      </h2>
+      <div class="metrics-actions">
+        <span class="last-refresh" *ngIf="lastRefresh">
+          ⏱ {{ lastRefresh | date:'HH:mm:ss' }}
+        </span>
+        <button class="btn-metrics-refresh" (click)="loadMetrics(); loadHistory()">
+          🔄 Rafraîchir
+        </button>
+        <button class="btn-metrics-reset" (click)="resetMetrics()">
+          🗑 Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Loader métriques -->
+    <div class="metrics-loader" *ngIf="metricsLoading">
+      <div class="spinner-sm"></div>
+      <span>Chargement des métriques...</span>
+    </div>
+
+    <ng-container *ngIf="metrics && !metricsLoading">
+
+      <!-- Cartes globales -->
+      <div class="perf-grid">
+
+        <div class="perf-card perf-hitrate" [ngClass]="getHitRateClass()">
+          <div class="perf-label">Hit Rate Global</div>
+          <div class="perf-value">{{ metrics.hitRate }}%</div>
+          <div class="perf-bar">
+            <div class="perf-bar-fill" [style.width.%]="metrics.hitRate"></div>
+          </div>
+          <div class="perf-sub">
+            {{ metrics.totalRequests | number }} requêtes totales
+          </div>
+        </div>
+
+        <div class="perf-card">
+          <div class="perf-label">Total Requêtes</div>
+          <div class="perf-value neutral">{{ metrics.totalRequests | number }}</div>
+          <div class="perf-icon">🔁</div>
+        </div>
+
+        <div class="perf-card">
+          <div class="perf-label">Total Hits</div>
+          <div class="perf-value success">{{ metrics.totalHits | number }}</div>
+          <div class="perf-icon">✅</div>
+        </div>
+
+        <div class="perf-card">
+          <div class="perf-label">Total Misses</div>
+          <div class="perf-value danger">{{ metrics.totalMisses | number }}</div>
+          <div class="perf-icon">❌</div>
+        </div>
+
+      </div>
+
+      <!-- Niveaux L1 / L2 / L3 -->
+      <div class="levels-grid">
+
+        <div class="level-card l1">
+          <div class="level-top">
+            <span class="level-badge">L1</span>
+            <span class="level-name">Mémoire Locale</span>
+          </div>
+          <div class="level-body">
+            <div class="ls"><span class="ls-k">Hits</span><span class="ls-v success">{{ metrics.l1Hits }}</span></div>
+            <div class="ls"><span class="ls-k">Misses</span><span class="ls-v danger">{{ metrics.l1Misses }}</span></div>
+            <div class="ls"><span class="ls-k">Hit Rate</span><span class="ls-v accent">{{ metrics.l1HitRate }}%</span></div>
+            <div class="ls"><span class="ls-k">Avg Time</span><span class="ls-v">{{ formatTime(metrics.l1AvgResponseTime) }}</span></div>
+          </div>
+          <div class="level-bar"><div class="level-bar-fill" [style.width.%]="metrics.l1HitRate"></div></div>
+        </div>
+
+        <div class="level-card l2">
+          <div class="level-top">
+            <span class="level-badge">L2</span>
+            <span class="level-name">Redis</span>
+          </div>
+          <div class="level-body">
+            <div class="ls"><span class="ls-k">Hits</span><span class="ls-v success">{{ metrics.l2Hits }}</span></div>
+            <div class="ls"><span class="ls-k">Misses</span><span class="ls-v danger">{{ metrics.l2Misses }}</span></div>
+            <div class="ls"><span class="ls-k">Hit Rate</span><span class="ls-v accent">{{ metrics.l2HitRate }}%</span></div>
+            <div class="ls"><span class="ls-k">Avg Time</span><span class="ls-v">{{ formatTime(metrics.l2AvgResponseTime) }}</span></div>
+          </div>
+          <div class="level-bar"><div class="level-bar-fill" [style.width.%]="metrics.l2HitRate"></div></div>
+        </div>
+
+        <div class="level-card l3">
+          <div class="level-top">
+            <span class="level-badge">L3</span>
+            <span class="level-name">MongoDB</span>
+          </div>
+          <div class="level-body">
+            <div class="ls"><span class="ls-k">Requêtes DB</span><span class="ls-v danger">{{ metrics.l3Requests }}</span></div>
+            <div class="ls"><span class="ls-k">Avg Time</span><span class="ls-v">{{ formatTime(metrics.l3AvgResponseTime) }}</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Graphiques -->
+      <div class="charts-row">
+
+        <div class="chart-card chart-donut">
+          <div class="chart-title">Répartition Hits / Misses</div>
+          <div class="chart-wrap-donut">
+            <canvas #hitMissChart></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card chart-line">
+          <div class="chart-title">Évolution du Hit Rate dans le temps</div>
+          <div class="chart-wrap-line" *ngIf="metricsHistory.length > 0">
+            <canvas #hitRateChart></canvas>
+          </div>
+          <div class="chart-empty" *ngIf="metricsHistory.length === 0">
+            <span>📭</span>
+            <p>Pas encore de données</p>
+            <small>Les snapshots sont pris toutes les 60 secondes</small>
+          </div>
+        </div>
+
+      </div>
+
+    </ng-container>
+  </div>
+  <!-- FIN SECTION MÉTRIQUES -->
+
+  <!-- Actions rapides (existant) -->
   <div class="quick-actions">
     <h2 class="section-title">Actions Rapides</h2>
-
     <div class="actions-grid">
       <button class="action-btn warmup" (click)="warmupCache()">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -83,7 +201,6 @@
         </svg>
         <span>Préchauffer Cache</span>
       </button>
-
       <button class="action-btn pattern" (click)="deleteByPattern()">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <polyline points="3 6 5 6 21 6"/>
@@ -91,7 +208,6 @@
         </svg>
         <span>Supprimer par Pattern</span>
       </button>
-
       <button class="action-btn danger" (click)="clearAll()">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <circle cx="12" cy="12" r="10"/>
@@ -103,83 +219,50 @@
     </div>
   </div>
 
-  <!-- Répartition par type -->
+  <!-- Distribution (existant) -->
   <div class="distribution-section" *ngIf="stats">
     <h2 class="section-title">Répartition par Type</h2>
-
     <div class="distribution-grid">
-      <div
-        class="type-card"
-        *ngFor="let type of getTypes()"
-        [style.border-left-color]="getTypeColor(type)"
-      >
+      <div class="type-card" *ngFor="let type of getTypes()" [style.border-left-color]="getTypeColor(type)">
         <div class="type-name">{{ type }}</div>
         <div class="type-count">{{ stats.keysByType[type] }} clés</div>
         <div class="type-bar">
-          <div
-            class="type-bar-fill"
+          <div class="type-bar-fill"
             [style.width.%]="(stats.keysByType[type] / stats.totalKeys) * 100"
-            [style.background]="getTypeColor(type)"
-          ></div>
+            [style.background]="getTypeColor(type)">
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Liste des clés -->
+  <!-- Liste des clés (existant) -->
   <div class="keys-section" *ngIf="stats">
     <div class="keys-header">
       <h2 class="section-title">Clés en Cache (Top 50)</h2>
-
       <div class="keys-filters">
         <select [(ngModel)]="selectedType" class="filter-select">
           <option value="all">Tous les types</option>
-          <option *ngFor="let type of getTypes()" [value]="type">
-            {{ type }}
-          </option>
+          <option *ngFor="let type of getTypes()" [value]="type">{{ type }}</option>
         </select>
-
-        <input
-          type="text"
-          [(ngModel)]="searchPattern"
-          placeholder="Pattern (ex: products:*)"
-          class="filter-input"
-        >
+        <input type="text" [(ngModel)]="searchPattern" placeholder="Pattern (ex: products:*)" class="filter-input">
       </div>
     </div>
-
     <div class="keys-table-container">
       <table class="keys-table">
         <thead>
           <tr>
-            <th>Clé</th>
-            <th>Type</th>
-            <th>TTL</th>
-            <th>Taille</th>
-            <th>Actions</th>
+            <th>Clé</th><th>Type</th><th>TTL</th><th>Taille</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let key of getFilteredKeys()">
-            <td class="key-cell">
-              <code>{{ key.key }}</code>
-            </td>
-            <td>
-              <span
-                class="type-badge"
-                [style.background]="getTypeColor(key.type)"
-              >
-                {{ key.type }}
-              </span>
-            </td>
+            <td class="key-cell"><code>{{ key.key }}</code></td>
+            <td><span class="type-badge" [style.background]="getTypeColor(key.type)">{{ key.type }}</span></td>
             <td>{{ formatTTL(key.ttl) }}</td>
             <td>{{ key.sizeKB }} KB</td>
             <td>
-              <button
-                class="btn-delete"
-                (click)="deleteKey(key.key)"
-                title="Supprimer cette clé"
-              >
+              <button class="btn-delete" (click)="deleteKey(key.key)" title="Supprimer">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <polyline points="3 6 5 6 21 6"/>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -189,7 +272,6 @@
           </tr>
         </tbody>
       </table>
-
       <div class="empty-state" *ngIf="getFilteredKeys().length === 0">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <circle cx="12" cy="12" r="10"/>
@@ -201,7 +283,7 @@
     </div>
   </div>
 
-  <!-- Loading -->
+  <!-- Loading overlay -->
   <div class="loading-overlay" *ngIf="loading">
     <div class="spinner"></div>
     <p>Chargement...</p>

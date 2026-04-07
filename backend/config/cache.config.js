@@ -1,119 +1,59 @@
-// ════════════════════════════════════════════════════════════
-// CONFIGURATION CACHE MULTINIVEAU INTELLIGENT
-// ════════════════════════════════════════════════════════════
+/**
+ * Configuration du Cache Multiniveau
+ */
 
 export const CACHE_CONFIG = {
-  levels: {
-    L1: 'memory',
-    L2: 'redis',
-    L3: 'database'
+  monitoring: {
+    enabled: true,
+    logMisses: true
+  },
+
+  limits: {
+    maxMemoryKeys: 1000,        // Limite L1 (mémoire)
+    maxRedisKeys: 10000
   },
 
   strategies: {
     products: {
-      ttl: 3600,
-      staleWhileRevalidate: 7200,
-      tags: ['products'],
-      prefetch: true,
-      compress: true
+      ttl: 300,                 // 5 minutes
+      warmup: true,
+      compress: false
     },
-
-    productDetail: {
-      ttl: 1800,
-      staleWhileRevalidate: 3600,
-      tags: ['products', 'product-detail'],
-      warmup: ['featured', 'trending']
-    },
-
     categories: {
-      ttl: 86400,
-      tags: ['categories'],
-      invalidateOn: ['product-update']
+      ttl: 3600,                // 1 heure
+      warmup: true,
+      compress: false
     },
-
-    search: {
-      ttl: 600,
-      maxEntries: 1000,
-      trackPopular: true,
-      tags: ['search']
-    },
-
-    cart: {
+    // Ajoute d'autres types selon tes besoins
+    default: {
       ttl: 300,
-      personal: true,
-      tags: ['cart']
-    },
-
-    user: {
-      ttl: 1800,
-      personal: true,
-      tags: ['user']
-    },
-
-    stats: {
-      ttl: 300,
-      tags: ['stats', 'admin']
-    },
-
-    orders: {
-      ttl: 0,
-      bypass: true
+      warmup: false
     }
   },
 
-  priorities: {
-    productDetail: 1,
-    products: 2,
-    categories: 2,
-    search: 3,
-    user: 3,
-    cart: 4,
-    stats: 5
-  },
-
-  limits: {
-    maxMemoryMB: 100,
-    maxRedisKeys: 10000,
-    evictionPolicy: 'lru'
-  },
-
   invalidation: {
-    'product-update': ['products', 'product-detail', 'categories', 'search'],
-    'order-created': ['stats', 'user'],
-    'user-login': ['user', 'cart']
-  },
-
-  monitoring: {
-    enabled: true,
-    logHits: false,
-    logMisses: true,
-    metrics: true
+    // Exemple : invalider le cache produits quand un produit est modifié
+    'product-updated': ['products'],
+    'product-created': ['products'],
+    'category-updated': ['categories']
   }
 };
 
-export const generateCacheKey = (type, params = {}) => {
-  const parts = [type];
-
-  const sortedParams = Object.keys(params)
+export function generateCacheKey(type, params = {}) {
+  if (!params || Object.keys(params).length === 0) {
+    return `${type}`;
+  }
+  const paramStr = Object.keys(params)
     .sort()
     .map(key => `${key}:${params[key]}`)
-    .join('|');
+    .join(':');
+  return `${type}:${paramStr}`;
+}
 
-  if (sortedParams) {
-    parts.push(sortedParams);
-  }
-
-  return parts.join(':');
-};
-
-export const calculateDynamicTTL = (baseConfig, accessCount = 0) => {
-  const { ttl } = baseConfig;
-
-  if (accessCount > 1000) return ttl * 2;
-  if (accessCount > 100) return ttl * 1.5;
-  if (accessCount > 10) return ttl;
-
-  return ttl * 0.5;
-};
-
-export default CACHE_CONFIG;
+export function calculateDynamicTTL(config, accessCount = 0) {
+  const baseTTL = config.ttl || 300;
+  // TTL plus long si la clé est souvent accédée
+  if (accessCount > 50) return Math.min(baseTTL * 3, 3600);
+  if (accessCount > 20) return Math.min(baseTTL * 2, 1800);
+  return baseTTL;
+}

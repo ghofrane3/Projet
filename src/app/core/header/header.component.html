@@ -26,6 +26,14 @@
     <!-- Actions -->
     <div class="header-actions">
 
+      <!-- Recherche -->
+      <button class="icon-btn search-btn" (click)="toggleSearch()" title="Rechercher">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+      </button>
+
       <!-- Compte -->
       <div class="account-menu" *ngIf="!isAuthenticated">
         <button class="icon-btn" routerLink="/login" title="Se connecter">
@@ -37,22 +45,18 @@
       </div>
 
       <!-- User connecté -->
-    <!-- User Menu dans le header -->
-<div class="user-menu" *ngIf="isAuthenticated">
-  <span>👤 {{ currentUser?.name }}</span>
-  <div class="dropdown">
-    <!-- ✅ ADMIN → Dashboard -->
-    <a *ngIf="currentUser?.role === 'admin'" routerLink="/admin/dashboard">
-      Dashboard Admin
-    </a>
+      <div class="user-menu" *ngIf="isAuthenticated">
+        <span>👤 {{ currentUser?.name }}</span>
+        <div class="dropdown">
+          <a *ngIf="currentUser?.role === 'admin'" routerLink="/admin/dashboard">
+            Dashboard Admin
+          </a>
+          <a *ngIf="currentUser?.role !== 'admin'" routerLink="/account">
+            Mon compte
+          </a>
+        </div>
+      </div>
 
-    <!-- ✅ CLIENT → Mon Compte -->
-    <a *ngIf="currentUser?.role !== 'admin'" routerLink="/account">
-      Mon compte
-    </a>
-
-  </div>
-</div>
       <!-- Panier -->
       <button class="icon-btn cart-btn" (click)="toggleCart()" title="Panier">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -64,7 +68,42 @@
       </button>
     </div>
   </div>
+
+  <!-- Search Bar (déroulante sous le header) -->
+  <div class="search-bar" [class.open]="searchOpen">
+    <div class="search-bar-container">
+      <form (submit)="onSearchSubmit($event)" class="search-form">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input
+          class="search-input"
+          type="text"
+          placeholder="Rechercher un article, une marque..."
+          [value]="searchQuery"
+          (input)="onSearchInput($event)"
+        />
+        <button type="button" class="search-clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+        <button type="submit" class="btn btn-primary search-submit-btn">
+          RECHERCHER
+        </button>
+      </form>
+      <button class="search-close-btn" (click)="closeSearch()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
 </header>
+
+<!-- Search Overlay -->
+<div class="search-overlay" [class.active]="searchOpen" (click)="closeSearch()"></div>
 
 <!-- Cart Sidebar -->
 <div class="cart-overlay" [class.active]="cartOpen" (click)="closeCart()"></div>

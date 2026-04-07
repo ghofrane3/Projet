@@ -1,174 +1,41 @@
 import express from 'express';
 import Product from '../models/Product.js';
-import { getCache, setCache, clearCachePattern, getRedisClient } from '../config/redis.js';
+import { clearCachePattern } from '../config/redis.js';
+
+// ════════════════════════════════════════════════════════════
+// IMPORT DU SINGLETON CACHESERVICE (remplace MultiLevelCache)
+// ════════════════════════════════════════════════════════════
+import cacheService from '../services/cache.service.js';
 
 const router = express.Router();
 
 // ════════════════════════════════════════════════════════════
-// SYSTÈME CACHE 3 NIVEAUX INTÉGRÉ
-// ════════════════════════════════════════════════════════════
-
-class MultiLevelCache {
-  constructor() {
-    // L1: Cache mémoire (le plus rapide)
-    this.memoryCache = new Map();
-    this.stats = { L1_hits: 0, L2_hits: 0, misses: 0, sets: 0 };
-
-    // Nettoyage automatique toutes les 5 minutes
-    setInterval(() => this.cleanup(), 5 * 60 * 1000);
-  }
-
-  // Générer clé unique
-  generateKey(type, params) {
-    const sorted = Object.keys(params)
-      .sort()
-      .map(k => `${k}:${params[k]}`)
-      .join('|');
-    return `${type}:${sorted}`;
-  }
-
-  // GET avec cascade L1 → L2 → L3
-  async get(type, params, ttl = 3600) {
-    const key = this.generateKey(type, params);
-
-    try {
-      // L1: Vérifier mémoire
-      const memoryData = this.memoryCache.get(key);
-      if (memoryData && Date.now() < memoryData.expires) {
-        this.stats.L1_hits++;
-        console.log(`🎯 L1 HIT: ${key}`);
-        return memoryData.data;
-      }
-
-      // L2: Vérifier Redis
-      const redisData = await getCache(key);
-      if (redisData) {
-        this.stats.L2_hits++;
-        console.log(`🎯 L2 HIT: ${key}`);
-
-        // Promouvoir en L1
-        this.memoryCache.set(key, {
-          data: redisData,
-          expires: Date.now() + (ttl * 1000)
-        });
-
-        return redisData;
-      }
-
-      // L3: Miss - sera chargé depuis MongoDB
-      this.stats.misses++;
-      console.log(`❌ MISS: ${key}`);
-      return null;
-
-    } catch (error) {
-      console.error('Erreur cache GET:', error);
-      return null;
-    }
-  }
-
-  // SET dans L1 + L2
-  async set(type, params, data, ttl = 3600) {
-    const key = this.generateKey(type, params);
-
-    try {
-      // L1: Sauvegarder en mémoire
-      this.memoryCache.set(key, {
-        data,
-        expires: Date.now() + (ttl * 1000)
-      });
-
-      // L2: Sauvegarder en Redis
-      await setCache(key, data, ttl);
-
-      this.stats.sets++;
-      return true;
-
-    } catch (error) {
-      console.error('Erreur cache SET:', error);
-      return false;
-    }
-  }
-
-  // Invalider tout (L1 + L2)
-  async invalidateAll(pattern = '*') {
-    try {
-      // L1: Vider mémoire
-      if (pattern === '*') {
-        this.memoryCache.clear();
-      } else {
-        for (const [key] of this.memoryCache) {
-          if (key.includes(pattern)) {
-            this.memoryCache.delete(key);
-          }
-        }
-      }
-
-      // L2: Vider Redis
-      await clearCachePattern(pattern);
-
-      console.log(`🔄 Cache invalidé: ${pattern}`);
-      return true;
-
-    } catch (error) {
-      console.error('Erreur invalidation:', error);
-      return false;
-    }
-  }
-
-  // Nettoyage des entrées expirées
-  cleanup() {
-    const now = Date.now();
-    let cleaned = 0;
-
-    for (const [key, value] of this.memoryCache) {
-      if (now > value.expires) {
-        this.memoryCache.delete(key);
-        cleaned++;
-      }
-    }
-
-    if (cleaned > 0) {
-      console.log(`🧹 Nettoyage: ${cleaned} entrées expirées`);
-    }
-  }
-
-  // Métriques
-  getStats() {
-    const total = this.stats.L1_hits + this.stats.L2_hits + this.stats.misses;
-    const hitRate = total > 0
-      ? (((this.stats.L1_hits + this.stats.L2_hits) / total) * 100).toFixed(2)
-      : 0;
-
-    return {
-      ...this.stats,
-      hitRate: `${hitRate}%`,
-      totalRequests: total,
-      memoryCacheSize: this.memoryCache.size
-    };
-  }
-}
-
-// Instance unique du cache
-const cache = new MultiLevelCache();
-
-// ════════════════════════════════════════════════════════════
-// MIDDLEWARE CACHE AUTOMATIQUE
+// MIDDLEWARE CACHE AUTOMATIQUE (branché sur cacheService)
 // ════════════════════════════════════════════════════════════
 const cacheMiddleware = (type, ttl = 3600) => {
   return async (req, res, next) => {
     if (req.method !== 'GET') return next();
 
     const params = { ...req.query, path: req.path };
-    const cachedData = await cache.get(type, params, ttl);
+
+    // ─── Mesure du temps L3 pour le SET ──────────────────
+    let l3Start = null;
+
+    // Utilise cacheService.get() → incrémente L1/L2 hits
+    const cachedData = await cacheService.get(type, params);
 
     if (cachedData) {
       return res.json({ ...cachedData, _cached: true });
     }
 
-    // Intercepter réponse pour mise en cache
+    // MISS → on va en MongoDB, on mesure le temps L3
+    l3Start = Date.now();
+
     const originalJson = res.json.bind(res);
     res.json = function(data) {
-      cache.set(type, params, data, ttl);
+      // Calcule le temps L3 (MongoDB) et le passe au SET
+      const l3Time = l3Start ? Date.now() - l3Start : 0;
+      cacheService.set(type, params, data, l3Time);
       return originalJson(data);
     };
 
@@ -177,37 +44,49 @@ const cacheMiddleware = (type, ttl = 3600) => {
 };
 
 // ════════════════════════════════════════════════════════════
-// ROUTES AVEC CACHE
+// HELPER : Invalider le cache (L1 + L2 via cacheService)
+// ════════════════════════════════════════════════════════════
+const invalidateCache = async (...patterns) => {
+  for (const pattern of patterns) {
+    // L1 : vider les clés correspondantes du memoryCache
+    for (const [key] of cacheService.memoryCache) {
+      if (key.includes(pattern)) {
+        cacheService.memoryCache.delete(key);
+        cacheService.memoryCacheStats.delete(key);
+      }
+    }
+    // L2 : vider Redis
+    await clearCachePattern(`*${pattern}*`);
+  }
+  cacheService.metrics.invalidations++;
+  console.log(`🔄 Cache invalidé: ${patterns.join(', ')}`);
+};
+
+// ════════════════════════════════════════════════════════════
+// ROUTES AVEC CACHE (logique métier identique)
 // ════════════════════════════════════════════════════════════
 
-// GET /api/products - Liste avec cache
+// GET /api/products
 router.get('/',
   cacheMiddleware('products', 3600),
   async (req, res) => {
     try {
       const {
-        gender,
-        category,
-        search,
-        minPrice,
-        maxPrice,
-        sizes,
-        colors,
-        sort = '-createdAt',
-        page = 1,
-        limit = 20
+        gender, category, search,
+        minPrice, maxPrice, sizes, colors,
+        sort = '-createdAt', page = 1, limit = 20
       } = req.query;
 
       const query = {};
 
-      if (gender) query.gender = gender;
+      if (gender)   query.gender   = gender;
       if (category) query.category = category;
 
       if (search) {
         query.$or = [
-          { name: { $regex: search, $options: 'i' } },
+          { name:        { $regex: search, $options: 'i' } },
           { description: { $regex: search, $options: 'i' } },
-          { brand: { $regex: search, $options: 'i' } }
+          { brand:       { $regex: search, $options: 'i' } }
         ];
       }
 
@@ -217,15 +96,8 @@ router.get('/',
         if (maxPrice) query.price.$lte = Number(maxPrice);
       }
 
-      if (sizes) {
-        const sizeArray = sizes.split(',');
-        query.sizes = { $in: sizeArray };
-      }
-
-      if (colors) {
-        const colorArray = colors.split(',');
-        query['colors.name'] = { $in: colorArray };
-      }
+      if (sizes)  query.sizes          = { $in: sizes.split(',') };
+      if (colors) query['colors.name'] = { $in: colors.split(',') };
 
       const skip = (Number(page) - 1) * Number(limit);
 
@@ -238,7 +110,7 @@ router.get('/',
         success: true,
         products,
         pagination: {
-          page: Number(page),
+          page:  Number(page),
           limit: Number(limit),
           total,
           pages: Math.ceil(total / Number(limit))
@@ -297,11 +169,9 @@ router.get('/:id',
   async (req, res) => {
     try {
       const product = await Product.findById(req.params.id).lean();
-
       if (!product) {
         return res.status(404).json({ success: false, message: 'Produit non trouvé' });
       }
-
       res.json({ success: true, product });
     } catch (error) {
       res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -309,35 +179,30 @@ router.get('/:id',
   }
 );
 
-// POST /api/products - Créer + invalider cache
+// POST /api/products
 router.post('/', async (req, res) => {
   try {
     const product = new Product(req.body);
     await product.save();
-
-    // Invalider cache
-    await cache.invalidateAll('products');
+    await invalidateCache('products');
     console.log('✅ Produit créé, cache invalidé');
-
     res.status(201).json({ success: true, product });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
-// PUT /api/products/:id - Modifier + invalider
+// PUT /api/products/:id
 router.put('/:id', async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-
+    const product = await Product.findByIdAndUpdate(
+      req.params.id, req.body, { new: true }
+    );
     if (!product) {
       return res.status(404).json({ success: false, message: 'Produit non trouvé' });
     }
-
-    await cache.invalidateAll('products');
-    await cache.invalidateAll('product-detail');
+    await invalidateCache('products', 'product-detail');
     console.log('✅ Produit modifié, cache invalidé');
-
     res.json({ success: true, product });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -348,14 +213,11 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
-
     if (!product) {
       return res.status(404).json({ success: false, message: 'Produit non trouvé' });
     }
-
-    await cache.invalidateAll('products');
+    await invalidateCache('products');
     console.log('✅ Produit supprimé, cache invalidé');
-
     res.json({ success: true, message: 'Produit supprimé' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -363,21 +225,21 @@ router.delete('/:id', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// ADMIN - Métriques & Gestion Cache
+// ADMIN — Métriques & Gestion Cache (redirige vers cacheService)
 // ════════════════════════════════════════════════════════════
 
 // GET /api/products/admin/cache/metrics
 router.get('/admin/cache/metrics', (req, res) => {
   res.json({
     success: true,
-    metrics: cache.getStats(),
+    metrics: cacheService.getMetrics(),
     timestamp: new Date().toISOString()
   });
 });
 
 // POST /api/products/admin/cache/clear
 router.post('/admin/cache/clear', async (req, res) => {
-  await cache.invalidateAll('*');
+  await invalidateCache('products', 'product-detail', 'featured', 'trending', 'categories');
   res.json({ success: true, message: 'Cache vidé' });
 });
 
@@ -385,16 +247,15 @@ router.post('/admin/cache/clear', async (req, res) => {
 router.post('/admin/cache/warmup', async (req, res) => {
   try {
     console.log('🔥 Warmup cache...');
-
     const [featured, trending, categories] = await Promise.all([
       Product.find({ featured: true }).limit(10).lean(),
       Product.find({ trending: true }).limit(10).lean(),
       Product.distinct('category')
     ]);
 
-    await cache.set('featured', {}, featured, 7200);
-    await cache.set('trending', {}, trending, 3600);
-    await cache.set('categories', {}, categories, 86400);
+    await cacheService.set('featured',    {}, { success: true, products: featured },   7200);
+    await cacheService.set('trending',    {}, { success: true, products: trending },   3600);
+    await cacheService.set('categories',  {}, { success: true, categories },           86400);
 
     console.log('✅ Warmup terminé');
     res.json({ success: true, message: 'Cache préchauffé' });

@@ -42,8 +42,9 @@ export class UsersManagementComponent implements OnInit {
     const token = this.authService.getAccessToken();
     const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
 
-    this.http.get<any>('http://localhost:5000/api/admin/users', { headers })
-      .subscribe({
+     this.http.get<any>('http://localhost:5000/api/admin/users', {
+    withCredentials: true  // ⭐ IMPORTANT
+  }).subscribe({
         next: (response) => {
           this.users = response.users;
           this.applyFilters();
