@@ -32,9 +32,6 @@
       <h1 class="form-title">Bon retour</h1>
       <p class="form-subtitle">Connectez-vous à votre espace personnel</p>
 
-      <!-- Info démo -->
-
-
       <!-- Erreur -->
       <div class="alert alert-error" *ngIf="error">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -62,7 +59,7 @@
           >
         </div>
 
-        <!-- Password -->
+        <!-- Mot de passe -->
         <div class="form-group">
           <label for="password">MOT DE PASSE</label>
           <div class="password-input">
@@ -91,6 +88,20 @@
               </svg>
             </button>
           </div>
+
+          <!-- Barre de force (affichée seulement si l'utilisateur tape) -->
+          <div class="password-strength" *ngIf="password">
+            <div class="strength-bar-track">
+              <div
+                class="strength-bar-fill"
+                [style.width.%]="passwordStrength.score * 20"
+                [style.background-color]="passwordStrength.color"
+              ></div>
+            </div>
+            <span class="strength-label" [style.color]="passwordStrength.color">
+              {{ passwordStrength.label }}
+            </span>
+          </div>
         </div>
 
         <!-- Mot de passe oublié -->
@@ -113,8 +124,8 @@
           <span>Vous n'avez pas de compte ?</span>
           <a routerLink="/register">Créer un compte</a>
         </div>
-      </form>
 
+      </form>
     </div>
   </div>
 

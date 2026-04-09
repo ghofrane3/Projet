@@ -1,74 +1,33 @@
 import express from 'express';
-import Product from '../models/Product.js';
+import Product  from '../models/Product.js';
 import { clearCachePattern } from '../config/redis.js';
+import cacheService from '../services/cache.service.js';
 
 // ════════════════════════════════════════════════════════════
-// IMPORT DU SINGLETON CACHESERVICE (remplace MultiLevelCache)
+// IMPORT DES MIDDLEWARES CACHE
 // ════════════════════════════════════════════════════════════
-import cacheService from '../services/cache.service.js';
+import {
+  cacheMiddleware,
+  searchCacheMiddleware,
+  suggestionsCacheMiddleware,
+  invalidateCachePattern,
+} from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
 // ════════════════════════════════════════════════════════════
-// MIDDLEWARE CACHE AUTOMATIQUE (branché sur cacheService)
-// ════════════════════════════════════════════════════════════
-const cacheMiddleware = (type, ttl = 3600) => {
-  return async (req, res, next) => {
-    if (req.method !== 'GET') return next();
-
-    const params = { ...req.query, path: req.path };
-
-    // ─── Mesure du temps L3 pour le SET ──────────────────
-    let l3Start = null;
-
-    // Utilise cacheService.get() → incrémente L1/L2 hits
-    const cachedData = await cacheService.get(type, params);
-
-    if (cachedData) {
-      return res.json({ ...cachedData, _cached: true });
-    }
-
-    // MISS → on va en MongoDB, on mesure le temps L3
-    l3Start = Date.now();
-
-    const originalJson = res.json.bind(res);
-    res.json = function(data) {
-      // Calcule le temps L3 (MongoDB) et le passe au SET
-      const l3Time = l3Start ? Date.now() - l3Start : 0;
-      cacheService.set(type, params, data, l3Time);
-      return originalJson(data);
-    };
-
-    next();
-  };
-};
-
-// ════════════════════════════════════════════════════════════
-// HELPER : Invalider le cache (L1 + L2 via cacheService)
+// HELPER INVALIDATION (conserve l'ancien comportement)
 // ════════════════════════════════════════════════════════════
 const invalidateCache = async (...patterns) => {
-  for (const pattern of patterns) {
-    // L1 : vider les clés correspondantes du memoryCache
-    for (const [key] of cacheService.memoryCache) {
-      if (key.includes(pattern)) {
-        cacheService.memoryCache.delete(key);
-        cacheService.memoryCacheStats.delete(key);
-      }
-    }
-    // L2 : vider Redis
-    await clearCachePattern(`*${pattern}*`);
-  }
-  cacheService.metrics.invalidations++;
-  console.log(`🔄 Cache invalidé: ${patterns.join(', ')}`);
+  await invalidateCachePattern(...patterns);
 };
 
 // ════════════════════════════════════════════════════════════
-// ROUTES AVEC CACHE (logique métier identique)
+// GET /api/products — Liste + recherche + filtres
+// Utilise searchCacheMiddleware → TTL dynamique + normalisation
 // ════════════════════════════════════════════════════════════
-
-// GET /api/products
 router.get('/',
-  cacheMiddleware('products', 3600),
+  searchCacheMiddleware(),
   async (req, res) => {
     try {
       const {
@@ -82,11 +41,12 @@ router.get('/',
       if (gender)   query.gender   = gender;
       if (category) query.category = category;
 
-      if (search) {
+      if (search && search.trim()) {
+        const term = search.trim();
         query.$or = [
-          { name:        { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
-          { brand:       { $regex: search, $options: 'i' } }
+          { name:        { $regex: term, $options: 'i' } },
+          { description: { $regex: term, $options: 'i' } },
+          { brand:       { $regex: term, $options: 'i' } }
         ];
       }
 
@@ -114,7 +74,9 @@ router.get('/',
           limit: Number(limit),
           total,
           pages: Math.ceil(total / Number(limit))
-        }
+        },
+        // Indiquer si c'est une recherche (utile pour le frontend)
+        ...(search ? { searchTerm: search.trim(), resultCount: total } : {})
       });
 
     } catch (error) {
@@ -124,9 +86,12 @@ router.get('/',
   }
 );
 
+// ════════════════════════════════════════════════════════════
 // GET /api/products/featured
+// TTL fixe 7200s — cacheMiddleware standard
+// ════════════════════════════════════════════════════════════
 router.get('/featured',
-  cacheMiddleware('featured', 7200),
+  cacheMiddleware('featured', (req) => ({ path: req.path })),
   async (req, res) => {
     try {
       const products = await Product.find({ featured: true }).limit(8).lean();
@@ -137,9 +102,11 @@ router.get('/featured',
   }
 );
 
+// ════════════════════════════════════════════════════════════
 // GET /api/products/trending
+// ════════════════════════════════════════════════════════════
 router.get('/trending',
-  cacheMiddleware('trending', 3600),
+  cacheMiddleware('trending', (req) => ({ path: req.path })),
   async (req, res) => {
     try {
       const products = await Product.find({ trending: true }).limit(10).lean();
@@ -150,9 +117,11 @@ router.get('/trending',
   }
 );
 
+// ════════════════════════════════════════════════════════════
 // GET /api/products/categories
+// ════════════════════════════════════════════════════════════
 router.get('/categories',
-  cacheMiddleware('categories', 86400),
+  cacheMiddleware('categories', (req) => ({ path: req.path })),
   async (req, res) => {
     try {
       const categories = await Product.distinct('category');
@@ -163,9 +132,97 @@ router.get('/categories',
   }
 );
 
-// GET /api/products/:id
+// ════════════════════════════════════════════════════════════
+// NOUVELLES ROUTES RECHERCHE
+// ════════════════════════════════════════════════════════════
+
+// GET /api/products/search/suggestions — Autocomplete
+// Cache 2 min — résultats très dynamiques
+router.get('/search/suggestions',
+  suggestionsCacheMiddleware(),
+  async (req, res) => {
+    try {
+      const { q = '' } = req.query;
+      const term = q.trim();
+
+      if (term.length < 2) {
+        return res.json({ success: true, suggestions: [] });
+      }
+
+      const regex = { $regex: term, $options: 'i' };
+
+      const [byName, byBrand, byCategory] = await Promise.all([
+        Product.find({ name: regex },     { name: 1, images: 1, price: 1 }).limit(5).lean(),
+        Product.find({ brand: regex },    { brand: 1 }).limit(3).lean(),
+        Product.find({ category: regex }, { category: 1 }).limit(3).lean()
+      ]);
+
+      const suggestions = [
+        ...byName.map(p => ({
+          type:  'product',
+          label: p.name,
+          price: p.price,
+          image: p.images?.[0] || null,
+          id:    p._id
+        })),
+        ...byBrand.map(p => ({
+          type:  'brand',
+          label: p.brand
+        })),
+        ...byCategory.map(p => ({
+          type:  'category',
+          label: p.category
+        }))
+      ].slice(0, 8);
+
+      res.json({ success: true, suggestions, query: term });
+
+    } catch (error) {
+      console.error('Erreur suggestions:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// GET /api/products/search/popular — Recherches populaires
+// Cache 1h — données stables
+router.get('/search/popular',
+  cacheMiddleware('search-popular', (req) => ({ path: req.path })),
+  async (req, res) => {
+    try {
+      const [topCategories, topBrands] = await Promise.all([
+        Product.aggregate([
+          { $group: { _id: '$category', count: { $sum: 1 } } },
+          { $sort:  { count: -1 } },
+          { $limit: 6 }
+        ]),
+        Product.aggregate([
+          { $group: { _id: '$brand', count: { $sum: 1 } } },
+          { $sort:  { count: -1 } },
+          { $limit: 5 }
+        ])
+      ]);
+
+      res.json({
+        success: true,
+        popular: {
+          categories: topCategories.map(c => c._id).filter(Boolean),
+          brands:     topBrands.map(b => b._id).filter(Boolean)
+        }
+      });
+
+    } catch (error) {
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════
+// GET /api/products/:id — Détail produit
+// DOIT RESTER EN DERNIER (sinon capte /search/suggestions etc.)
+// ════════════════════════════════════════════════════════════
 router.get('/:id',
-  cacheMiddleware('product-detail', 3600),
+  cacheMiddleware('product-detail', (req) => ({ path: req.path, id: req.params.id })),
   async (req, res) => {
     try {
       const product = await Product.findById(req.params.id).lean();
@@ -179,12 +236,17 @@ router.get('/:id',
   }
 );
 
+// ════════════════════════════════════════════════════════════
+// MUTATIONS — Invalider le cache après modification
+// ════════════════════════════════════════════════════════════
+
 // POST /api/products
 router.post('/', async (req, res) => {
   try {
     const product = new Product(req.body);
     await product.save();
-    await invalidateCache('products');
+    await invalidateCache('products', 'featured', 'trending',
+                          'categories', 'search-suggestions', 'search-popular');
     console.log('✅ Produit créé, cache invalidé');
     res.status(201).json({ success: true, product });
   } catch (error) {
@@ -201,7 +263,8 @@ router.put('/:id', async (req, res) => {
     if (!product) {
       return res.status(404).json({ success: false, message: 'Produit non trouvé' });
     }
-    await invalidateCache('products', 'product-detail');
+    await invalidateCache('products', 'product-detail', 'featured',
+                          'trending', 'search-suggestions');
     console.log('✅ Produit modifié, cache invalidé');
     res.json({ success: true, product });
   } catch (error) {
@@ -216,7 +279,8 @@ router.delete('/:id', async (req, res) => {
     if (!product) {
       return res.status(404).json({ success: false, message: 'Produit non trouvé' });
     }
-    await invalidateCache('products');
+    await invalidateCache('products', 'product-detail',
+                          'search-suggestions', 'search-popular');
     console.log('✅ Produit supprimé, cache invalidé');
     res.json({ success: true, message: 'Produit supprimé' });
   } catch (error) {
@@ -225,25 +289,23 @@ router.delete('/:id', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// ADMIN — Métriques & Gestion Cache (redirige vers cacheService)
+// ADMIN — Métriques & Gestion Cache
 // ════════════════════════════════════════════════════════════
 
-// GET /api/products/admin/cache/metrics
 router.get('/admin/cache/metrics', (req, res) => {
   res.json({
-    success: true,
-    metrics: cacheService.getMetrics(),
+    success:   true,
+    metrics:   cacheService.getMetrics(),
     timestamp: new Date().toISOString()
   });
 });
 
-// POST /api/products/admin/cache/clear
 router.post('/admin/cache/clear', async (req, res) => {
-  await invalidateCache('products', 'product-detail', 'featured', 'trending', 'categories');
+  await invalidateCache('products', 'product-detail', 'featured',
+                        'trending', 'categories', 'search-suggestions', 'search-popular');
   res.json({ success: true, message: 'Cache vidé' });
 });
 
-// POST /api/products/admin/cache/warmup
 router.post('/admin/cache/warmup', async (req, res) => {
   try {
     console.log('🔥 Warmup cache...');
@@ -253,9 +315,11 @@ router.post('/admin/cache/warmup', async (req, res) => {
       Product.distinct('category')
     ]);
 
-    await cacheService.set('featured',    {}, { success: true, products: featured },   7200);
-    await cacheService.set('trending',    {}, { success: true, products: trending },   3600);
-    await cacheService.set('categories',  {}, { success: true, categories },           86400);
+    await Promise.all([
+      cacheService.set('featured',   {}, { success: true, products: featured },  7200),
+      cacheService.set('trending',   {}, { success: true, products: trending },  3600),
+      cacheService.set('categories', {}, { success: true, categories },         86400),
+    ]);
 
     console.log('✅ Warmup terminé');
     res.json({ success: true, message: 'Cache préchauffé' });

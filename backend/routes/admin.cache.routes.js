@@ -209,4 +209,28 @@ router.post('/warmup', async (req, res) => {
   }
 });
 
+// routes/admin.js ou cache.routes.js
+router.get('/api/admin/cache/config', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      ttlConfig: {
+        textSearch:     300,   // 5 minutes en secondes
+        priceFilter:    600,   // 10 minutes
+        categoryFilter: 1800,  // 30 minutes
+        generalList:    3600,  // 1 heure
+        suggestions:    120,   // 2 minutes
+      },
+      // Tu peux aussi renvoyer les métriques globales ici
+      metrics: {
+        hitRate: 85,
+        l1Hits: 124,
+        l2Hits: 45,
+        totalMisses: 23,
+        totalRequests: 192
+      }
+    }
+  });
+});
+
 export default router;

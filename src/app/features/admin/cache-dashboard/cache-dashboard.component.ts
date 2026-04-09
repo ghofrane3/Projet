@@ -98,6 +98,117 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
 
   constructor(private http: HttpClient) {}
 
+  // Ajouter ces propriétés
+// Ajouter ces propriétés dans la classe
+searchCacheKeys:   any[]    = [];
+searchKeysLoading  = false;
+searchStats = {
+  totalSearchKeys:      0,
+  textSearchKeys:       0,
+  categoryFilterKeys:   0,
+  priceFilterKeys:      0,
+  suggestionKeys:       0,
+  popularKeys:          0,
+};
+
+// Charger les clés de recherche depuis Redis
+loadSearchCacheKeys(): void {
+  this.searchKeysLoading = true;
+
+  // Récupérer TOUTES les clés puis filtrer côté client
+  this.http.get<any>(`${this.API}/stats`, { withCredentials: true })
+    .subscribe({
+      next: (res) => {
+        if (res.success && res.stats?.recentKeys) {
+          // Filtrer les clés liées à la recherche
+          this.searchCacheKeys = res.stats.recentKeys.filter((k: any) =>
+            k.key.includes('search') ||
+            k.key.startsWith('products:')
+          );
+
+          // Calculer les stats par type
+          this.searchStats = {
+            totalSearchKeys:    this.searchCacheKeys.length,
+            textSearchKeys:     this.searchCacheKeys.filter(k =>
+              k.key.includes('search:')).length,
+            categoryFilterKeys: this.searchCacheKeys.filter(k =>
+              k.key.includes('gender:') || k.key.includes('category:')).length,
+            priceFilterKeys:    this.searchCacheKeys.filter(k =>
+              k.key.includes('minPrice') || k.key.includes('maxPrice')).length,
+            suggestionKeys:     this.searchCacheKeys.filter(k =>
+              k.key.includes('search-suggestions')).length,
+            popularKeys:        this.searchCacheKeys.filter(k =>
+              k.key.includes('search-popular')).length,
+          };
+        }
+        this.searchKeysLoading = false;
+      },
+      error: () => { this.searchKeysLoading = false; }
+    });
+}
+
+
+clearSearchCache(): void {
+  if (!confirm('Vider tout le cache de recherche ?')) return;
+
+  this.http.delete(`${this.API}/pattern`, {
+    body: { pattern: 'products:*' },
+    withCredentials: true
+  }).subscribe({
+    next: (res: any) => {
+      // Vider aussi les suggestions
+      this.http.delete(`${this.API}/pattern`, {
+        body: { pattern: '*search*' },
+        withCredentials: true
+      }).subscribe(() => {
+        this.showMessage(
+          `Cache recherche vidé (${res.deleted} clés)`, 'success'
+        );
+        this.loadSearchCacheKeys();
+        this.loadStats();
+      });
+    },
+    error: () => this.showMessage('Erreur vidage cache recherche', 'error')
+  });
+}
+
+getSearchKeyType(key: string): string {
+  if (key.includes('search-suggestions')) return 'suggestions';
+  if (key.includes('search-popular'))     return 'popular';
+  if (key.includes('search:'))            return 'text';
+  if (key.includes('gender:') ||
+      key.includes('category:'))          return 'category';
+  if (key.includes('minPrice') ||
+      key.includes('maxPrice'))           return 'price';
+  return 'general';
+}
+
+getSearchKeyTypeLabel(key: string): string {
+  const labels: {[k: string]: string} = {
+    suggestions: '💡 Suggestion',
+    popular:     '🔥 Populaire',
+    text:        '🔤 Recherche',
+    category:    '📂 Catégorie',
+    price:       '💰 Prix',
+    general:     '📋 Général',
+  };
+  return labels[this.getSearchKeyType(key)] || '❓';
+}
+
+getSearchKeyTTLClass(ttl: number | string): string {
+  if (ttl === 'permanent') return '';
+  const t = Number(ttl);
+  if (t < 60)  return 'ttl-critical';
+  if (t < 300) return 'ttl-warning';
+  return 'ttl-ok';
+}
+getTTLPercent(ttl: number | string): number {
+  if (ttl === 'permanent') return 100;
+  const t = Number(ttl);
+  // Max TTL = 3600s (1h), calculer le pourcentage restant
+  const maxTTL = 3600;
+  return Math.min(100, Math.round((t / maxTTL) * 100));
+}
   // ════════════════════════════════════════════════════════
   // LIFECYCLE
   // ════════════════════════════════════════════════════════
@@ -107,24 +218,27 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
     this.loadRedisInfo();
     this.loadMetrics();
     this.loadHistory();
+    this.loadSearchCacheKeys();
 
     if (this.autoRefresh) {
       this.startAutoRefresh();
     }
 
     // Auto-refresh métriques toutes les 5s
-    this.metricsSub = interval(5000).pipe(
-      switchMap(() => this.http.get<any>(`${this.API}/metrics`))
-    ).subscribe({
-      next: (res) => {
-        if (res.success) {
-          this.metrics = res.data;
-          this.lastRefresh = new Date();
-          this.updateHitMissChart();
-        }
-      },
-      error: (err) => console.error('❌ Metrics refresh error:', err)
-    });
+   this.metricsSub = interval(5000).pipe(
+    switchMap(() => this.http.get<any>(`${this.API}/metrics`))
+  ).subscribe({
+    next: (res) => {
+      if (res.success) {
+        this.metrics     = res.data;
+        this.lastRefresh = new Date();
+        this.updateHitMissChart();
+        // Rafraîchir aussi les clés search
+        this.loadSearchCacheKeys();
+      }
+    },
+    error: (err) => console.error('❌ Metrics refresh error:', err)
+  });
   }
 
   ngAfterViewInit(): void {

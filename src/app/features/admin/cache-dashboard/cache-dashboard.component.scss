@@ -615,4 +615,235 @@
   margin-bottom: var(--spacing-md);
 }
 
+// ════════════════════════════════════════════════════════════
+// SECTION CACHE RECHERCHE
+// ════════════════════════════════════════════════════════════
+
+.search-cache-section {
+  margin-bottom: var(--spacing-3xl);
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-2xl);
+  border: 1px solid var(--color-gray-200);
+}
+
+// ── Badges live / loading ────────────────────────────────
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #059669;
+  background: #d1fae5;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.05em;
+  margin-left: 0.5rem;
+  animation: pulse-green 2s infinite;
+}
+
+.loading-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-left: 0.5rem;
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+// ── Compteurs par type ────────────────────────────────────
+.search-counters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.search-counter-card {
+  background: white;
+  border-radius: 10px;
+  padding: 1rem;
+  border: 2px solid var(--color-gray-200);
+  text-align: center;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+
+  &.active {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.08);
+  }
+
+  &.total.active {
+    border-color: #059669;
+    box-shadow: 0 0 0 3px rgba(5,150,105,0.08);
+  }
+
+  .sc-icon  { font-size: 1.5rem; margin-bottom: 0.3rem; }
+
+  .sc-count {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1;
+    margin-bottom: 0.2rem;
+    transition: color 0.2s;
+  }
+
+  &.active .sc-count { color: #6366f1; }
+  &.total.active .sc-count { color: #059669; }
+
+  .sc-label {
+    font-size: 0.72rem;
+    color: var(--color-gray-500);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.2rem;
+  }
+
+  .sc-ttl {
+    font-size: 0.68rem;
+    color: var(--color-gray-400);
+    font-family: monospace;
+  }
+}
+
+// ── Section tableau des clés ──────────────────────────────
+.search-keys-section { margin-top: var(--spacing-xl); }
+
+.search-keys-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.search-keys-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-gray-700);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.keys-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  background: #6366f1;
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 0 6px;
+}
+
+.search-keys-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  color: var(--color-gray-400);
+  font-size: 0.85rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px dashed var(--color-gray-200);
+}
+
+.search-keys-empty {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  color: var(--color-gray-400);
+  background: white;
+  border-radius: 8px;
+  border: 1px dashed var(--color-gray-200);
+
+  span { font-size: 2rem; }
+
+  strong { display: block; color: var(--color-gray-600); margin-bottom: 0.2rem; }
+  p { margin: 0; font-size: 0.8rem; }
+}
+
+.search-keys-table-wrap {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-gray-200);
+  margin-bottom: var(--spacing-md);
+}
+
+// ── Badges type de clé ────────────────────────────────────
+.search-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &.text        { background: #eff6ff; color: #1d4ed8; }
+  &.suggestions { background: #fdf4ff; color: #7e22ce; }
+  &.popular     { background: #fff7ed; color: #c2410c; }
+  &.category    { background: #f0fdf4; color: #15803d; }
+  &.price       { background: #fffbeb; color: #b45309; }
+  &.general     { background: #f1f5f9; color: #475569; }
+}
+
+// ── TTL visuel ────────────────────────────────────────────
+.ttl-critical { color: #dc2626; font-weight: 700; }
+.ttl-warning  { color: #d97706; font-weight: 600; }
+.ttl-ok       { color: #059669; }
+
+.ttl-mini-bar {
+  height: 3px;
+  background: #f3f4f6;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 3px;
+  width: 80px;
+
+  .ttl-mini-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    background: #059669;
+
+    &.ttl-warning  { background: #d97706; }
+    &.ttl-critical { background: #dc2626; }
+  }
+}
+
+// ── Bouton vider recherche ────────────────────────────────
+.btn-clear-search {
+  padding: 0.4rem 0.875rem;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  background: #fff5f5;
+  color: #dc2626;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+  white-space: nowrap;
+
+  &:hover { background: #fee2e2; }
+}
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -190,6 +190,167 @@
     </ng-container>
   </div>
   <!-- FIN SECTION MÉTRIQUES -->
+<!-- ══════════════════════════════════════════════════════
+     SECTION CACHE RECHERCHE — DYNAMIQUE
+     ══════════════════════════════════════════════════════ -->
+<div class="search-cache-section">
+
+  <!-- En-tête -->
+  <div class="metrics-header">
+    <h2 class="section-title">
+      <span>🔍</span> Cache de Recherche
+      <span class="live-badge" *ngIf="!searchKeysLoading">
+        ● LIVE
+      </span>
+      <span class="loading-badge" *ngIf="searchKeysLoading">
+        ⟳ Mise à jour...
+      </span>
+    </h2>
+    <div class="metrics-actions">
+      <span class="last-refresh" *ngIf="lastRefresh">
+        ⏱ {{ lastRefresh | date:'HH:mm:ss' }}
+      </span>
+      <button class="btn-metrics-refresh" (click)="loadSearchCacheKeys()">
+        🔄 Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- Compteurs dynamiques par type -->
+  <div class="search-counters-grid">
+
+    <div class="search-counter-card" [class.active]="searchStats.textSearchKeys > 0">
+      <div class="sc-icon">🔤</div>
+      <div class="sc-count">{{ searchStats.textSearchKeys }}</div>
+      <div class="sc-label">Recherches texte</div>
+      <div class="sc-ttl">TTL 5 min</div>
+    </div>
+
+    <div class="search-counter-card" [class.active]="searchStats.categoryFilterKeys > 0">
+      <div class="sc-icon">📂</div>
+      <div class="sc-count">{{ searchStats.categoryFilterKeys }}</div>
+      <div class="sc-label">Filtres catégorie</div>
+      <div class="sc-ttl">TTL 30 min</div>
+    </div>
+
+    <div class="search-counter-card" [class.active]="searchStats.priceFilterKeys > 0">
+      <div class="sc-icon">💰</div>
+      <div class="sc-count">{{ searchStats.priceFilterKeys }}</div>
+      <div class="sc-label">Filtres prix</div>
+      <div class="sc-ttl">TTL 10 min</div>
+    </div>
+
+    <div class="search-counter-card" [class.active]="searchStats.suggestionKeys > 0">
+      <div class="sc-icon">💡</div>
+      <div class="sc-count">{{ searchStats.suggestionKeys }}</div>
+      <div class="sc-label">Suggestions</div>
+      <div class="sc-ttl">TTL 2 min</div>
+    </div>
+
+    <div class="search-counter-card" [class.active]="searchStats.popularKeys > 0">
+      <div class="sc-icon">🔥</div>
+      <div class="sc-count">{{ searchStats.popularKeys }}</div>
+      <div class="sc-label">Populaires</div>
+      <div class="sc-ttl">TTL 1 heure</div>
+    </div>
+
+    <div class="search-counter-card total" [class.active]="searchStats.totalSearchKeys > 0">
+      <div class="sc-icon">📊</div>
+      <div class="sc-count">{{ searchStats.totalSearchKeys }}</div>
+      <div class="sc-label">Total en cache</div>
+      <div class="sc-ttl">Toutes clés</div>
+    </div>
+
+  </div>
+
+  <!-- Tableau des clés de recherche actives -->
+  <div class="search-keys-section">
+
+    <div class="search-keys-header">
+      <h3 class="search-keys-title">
+        Clés de recherche actives
+        <span class="keys-count-badge">{{ searchCacheKeys.length }}</span>
+      </h3>
+      <button
+        class="btn-clear-search"
+        (click)="clearSearchCache()"
+        *ngIf="searchCacheKeys.length > 0"
+      >
+        🗑️ Vider le cache recherche
+      </button>
+    </div>
+
+    <!-- Loader -->
+    <div class="search-keys-loading" *ngIf="searchKeysLoading">
+      <div class="spinner-sm"></div>
+      <span>Mise à jour des clés...</span>
+    </div>
+
+    <!-- Vide -->
+    <div class="search-keys-empty"
+         *ngIf="!searchKeysLoading && searchCacheKeys.length === 0">
+      <span>📭</span>
+      <div>
+        <strong>Aucune clé de recherche en cache</strong>
+        <p>Effectuez une recherche sur le site pour voir les clés apparaître ici.</p>
+      </div>
+    </div>
+
+    <!-- Tableau dynamique -->
+    <div class="search-keys-table-wrap"
+         *ngIf="!searchKeysLoading && searchCacheKeys.length > 0">
+      <table class="keys-table">
+        <thead>
+          <tr>
+            <th>Clé de cache</th>
+            <th>Type</th>
+            <th>TTL restant</th>
+            <th>Taille</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let key of searchCacheKeys">
+            <td class="key-cell">
+              <code>{{ key.key }}</code>
+            </td>
+            <td>
+              <span class="search-type-badge"
+                    [ngClass]="getSearchKeyType(key.key)">
+                {{ getSearchKeyTypeLabel(key.key) }}
+              </span>
+            </td>
+            <td>
+              <span [ngClass]="getSearchKeyTTLClass(key.ttl)">
+                {{ formatTTL(key.ttl) }}
+              </span>
+              <!-- Barre TTL visuelle -->
+              <div class="ttl-mini-bar" *ngIf="key.ttl !== 'permanent'">
+                <div class="ttl-mini-fill"
+                     [style.width.%]="getTTLPercent(key.ttl)"
+                     [ngClass]="getSearchKeyTTLClass(key.ttl)">
+                </div>
+              </div>
+            </td>
+            <td>{{ key.sizeKB }} KB</td>
+            <td>
+              <button class="btn-delete"
+                      (click)="deleteKey(key.key)"
+                      title="Supprimer cette clé">
+                <svg width="16" height="16" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
 
   <!-- Actions rapides (existant) -->
   <div class="quick-actions">

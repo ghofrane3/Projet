@@ -8,7 +8,7 @@ import { VerifyEmailComponent } from './verify-email/verify-email.component';
 const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
-  { path: 'verify-email/:token', component: VerifyEmailComponent },
+  { path: 'verify-email', component: VerifyEmailComponent }, // ✅ plus de :token
   { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];
 
