@@ -31,7 +31,6 @@ export const adminGuard: CanActivateFn = (route, state) => {
   if (!isAdmin) {
     console.log('❌ Pas admin, redirection vers /');
     console.log('💡 Pour être admin, le rôle doit être "admin" (actuellement:', user?.role + ')');
-    alert('Accès refusé : vous devez être administrateur pour accéder à cette page');
     router.navigate(['/']);
     return false;
   }

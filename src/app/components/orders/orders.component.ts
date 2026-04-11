@@ -269,7 +269,6 @@ export class OrdersComponent implements OnInit {
   viewOrder(order: Order): void {
     console.log('👁️ Voir commande:', order);
     // TODO: Ouvrir modal ou rediriger vers détail
-    alert(`Commande #${order._id.slice(-8).toUpperCase()}\nTotal: ${order.total}€`);
   }
 
   updateStatus(order: Order): void {
@@ -280,12 +279,10 @@ export class OrdersComponent implements OnInit {
       this.http.put(`http://localhost:5000/api/orders/${order._id}/status`, { status: newStatus })
         .subscribe({
           next: () => {
-            alert('✅ Statut mis à jour');
             this.loadOrders();
           },
           error: (error) => {
             console.error('❌ Erreur:', error);
-            alert('❌ Erreur lors de la mise à jour');
           }
         });
     }

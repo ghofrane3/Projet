@@ -40,7 +40,8 @@ const orderSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
+paymentIntentId: { type: String }
+paymentStatus: { type: String }
 const Order = mongoose.model('Order', orderSchema);
 
 export default Order;

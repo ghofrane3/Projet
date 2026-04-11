@@ -4,121 +4,119 @@ import cacheService from '../services/cache.service.js';
 import {
   getMetrics,
   getHistory,
-  resetMetrics
+  resetMetrics,
 } from '../controllers/cacheMetrics.controller.js';
 
 const router = express.Router();
 
 // ════════════════════════════════════════════════════════════
-// ROUTES MÉTRIQUES — NOUVEAU (ordre important : avant /stats)
+// MÉTRIQUES (ordre important : avant /stats)
 // ════════════════════════════════════════════════════════════
 
-// GET  /api/admin/cache/metrics
-router.get('/metrics', getMetrics);
-
-// GET  /api/admin/cache/metrics/history
+router.get('/metrics',         getMetrics);
 router.get('/metrics/history', getHistory);
-
-// POST /api/admin/cache/metrics/reset
-router.post('/metrics/reset', resetMetrics);
+router.post('/metrics/reset',  resetMetrics);
 
 // ════════════════════════════════════════════════════════════
-// ROUTES EXISTANTES
+// STATS REDIS
 // ════════════════════════════════════════════════════════════
 
-// GET /api/admin/cache/stats
 router.get('/stats', async (req, res) => {
   try {
     const redisClient = getRedisClient();
-
     if (!redisClient) {
       return res.json({ success: false, message: 'Redis non connecté' });
     }
 
-    const allKeys = await redisClient.keys('*');
+    const allKeys    = await redisClient.keys('*');
     const keysByType = {};
     const keyDetails = [];
 
     for (const key of allKeys) {
-      const type = key.split(':')[0];
+      const type  = key.split(':')[0];
       keysByType[type] = (keysByType[type] || 0) + 1;
 
-      const ttl = await redisClient.ttl(key);
+      const ttl   = await redisClient.ttl(key);
       const value = await redisClient.get(key);
-      const size = value ? Buffer.byteLength(value, 'utf8') : 0;
+      const size  = value ? Buffer.byteLength(value, 'utf8') : 0;
 
       keyDetails.push({
         key,
         type,
-        ttl: ttl > 0 ? ttl : 'permanent',
+        ttl:    ttl > 0 ? ttl : 'permanent',
         size,
-        sizeKB: (size / 1024).toFixed(2)
+        sizeKB: (size / 1024).toFixed(2),
       });
     }
 
-    const totalSize = keyDetails.reduce((sum, k) => sum + k.size, 0);
+    const totalSize = keyDetails.reduce((s, k) => s + k.size, 0);
 
     res.json({
       success: true,
       stats: {
-        totalKeys: allKeys.length,
+        totalKeys:   allKeys.length,
         totalSizeKB: (totalSize / 1024).toFixed(2),
         totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
         keysByType,
-        recentKeys: keyDetails.sort((a, b) => b.size - a.size).slice(0, 50)
-      }
+        recentKeys:  keyDetails.sort((a, b) => b.size - a.size).slice(0, 50),
+      },
     });
-
   } catch (error) {
     console.error('Erreur stats cache:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// GET /api/admin/cache/keys
+// ════════════════════════════════════════════════════════════
+// CLÉS
+// ════════════════════════════════════════════════════════════
+
 router.get('/keys', async (req, res) => {
   try {
     const redisClient = getRedisClient();
     const { pattern = '*', limit = 100 } = req.query;
-
-    const keys = await redisClient.keys(pattern);
+    const keys    = await redisClient.keys(pattern);
     const keyData = [];
 
     for (const key of keys.slice(0, Number(limit))) {
-      const ttl = await redisClient.ttl(key);
+      const ttl   = await redisClient.ttl(key);
       const value = await redisClient.get(key);
       keyData.push({
         key,
         ttl,
-        size: value ? Buffer.byteLength(value, 'utf8') : 0,
-        preview: value ? value.substring(0, 100) : null
+        size:    value ? Buffer.byteLength(value, 'utf8') : 0,
+        preview: value ? value.substring(0, 100) : null,
       });
     }
 
     res.json({ success: true, total: keys.length, displayed: keyData.length, keys: keyData });
-
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// DELETE /api/admin/cache/key/:key
 router.delete('/key/:key', async (req, res) => {
   try {
     const redisClient = getRedisClient();
-    const { key } = req.params;
+    const { key }     = req.params;
+
     const deleted = await redisClient.del(key);
+
+    // Synchronise L1 + stratégie
+    cacheService.memoryCache.delete(key);
+    cacheService.memoryCacheStats.delete(key);
+    if (cacheService.strategy) cacheService.strategy.remove(key);
+
     res.json({
       success: deleted > 0,
       message: deleted > 0 ? `Clé ${key} supprimée` : 'Clé non trouvée',
-      deleted
+      deleted,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// DELETE /api/admin/cache/pattern
 router.delete('/pattern', async (req, res) => {
   try {
     const redisClient = getRedisClient();
@@ -134,56 +132,68 @@ router.delete('/pattern', async (req, res) => {
     }
 
     const deleted = await redisClient.del(keys);
-    res.json({ success: true, message: `${deleted} clés supprimées`, deleted, keys });
 
+    // Synchronise L1 + stratégie
+    for (const key of keys) {
+      cacheService.memoryCache.delete(key);
+      cacheService.memoryCacheStats.delete(key);
+      if (cacheService.strategy) cacheService.strategy.remove(key);
+    }
+
+    res.json({ success: true, message: `${deleted} clés supprimées`, deleted, keys });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// DELETE /api/admin/cache/all
 router.delete('/all', async (req, res) => {
   try {
     const redisClient = getRedisClient();
     await redisClient.flushDb();
+    cacheService.memoryCache.clear();
+    cacheService.memoryCacheStats.clear();
     res.json({ success: true, message: 'Cache entièrement vidé' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// GET /api/admin/cache/info
+// ════════════════════════════════════════════════════════════
+// INFO REDIS
+// ════════════════════════════════════════════════════════════
+
 router.get('/info', async (req, res) => {
   try {
     const redisClient = getRedisClient();
-    const info = await redisClient.info();
+    const info        = await redisClient.info();
 
     const memoryMatch = info.match(/used_memory_human:(.*)/);
-    const keysMatch = info.match(/keys=([\d]+)/);
+    const keysMatch   = info.match(/keys=([\d]+)/);
     const uptimeMatch = info.match(/uptime_in_seconds:([\d]+)/);
+    const uptime      = uptimeMatch ? Number(uptimeMatch[1]) : 0;
 
     res.json({
       success: true,
       redis: {
-        memory: memoryMatch ? memoryMatch[1].trim() : 'unknown',
-        totalKeys: keysMatch ? keysMatch[1] : '0',
-        uptime: uptimeMatch ? Number(uptimeMatch[1]) : 0,
-        uptimeFormatted: uptimeMatch
-          ? `${Math.floor(uptimeMatch[1] / 3600)}h ${Math.floor((uptimeMatch[1] % 3600) / 60)}m`
-          : '0h 0m'
-      }
+        memory:          memoryMatch ? memoryMatch[1].trim() : 'unknown',
+        totalKeys:       keysMatch   ? keysMatch[1]          : '0',
+        uptime,
+        uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
+      },
     });
-
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// POST /api/admin/cache/warmup
+// ════════════════════════════════════════════════════════════
+// WARMUP
+// ════════════════════════════════════════════════════════════
+
 router.post('/warmup', async (req, res) => {
   try {
     const { types = ['products', 'categories'] } = req.body;
-    const Product = (await import('../models/Product.js')).default;
+    const Product   = (await import('../models/Product.js')).default;
     const { setCache } = await import('../config/redis.js');
 
     const warmedUp = [];
@@ -203,33 +213,124 @@ router.post('/warmup', async (req, res) => {
     }
 
     res.json({ success: true, message: 'Cache préchauffé', warmedUp });
-
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// routes/admin.js ou cache.routes.js
-router.get('/api/admin/cache/config', (req, res) => {
+// ════════════════════════════════════════════════════════════
+// NOUVELLES ROUTES — SMART CACHE (TTL Adaptatif + Stratégie)
+// ════════════════════════════════════════════════════════════
+
+// GET /api/admin/cache/smart-config
+// Retourne la configuration TTL adaptatif + stratégie active
+router.get('/smart-config', (req, res) => {
+  try {
+    if (!cacheService.getAdaptiveTTLConfig) {
+      return res.status(503).json({
+        success: false,
+        error: 'Smart cache non initialisé — appelez patchCacheService() dans server.js',
+      });
+    }
+    res.json({ success: true, data: cacheService.getAdaptiveTTLConfig() });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/admin/cache/smart-config
+// Modifie la configuration TTL adaptatif à chaud (sans redémarrage)
+// Body: { baseTTL, minTTL, maxTTL, hotThreshold, coldAfterMs }
+router.post('/smart-config', (req, res) => {
+  try {
+    if (!cacheService.updateAdaptiveTTLConfig) {
+      return res.status(503).json({
+        success: false,
+        error: 'Smart cache non initialisé — appelez patchCacheService() dans server.js',
+      });
+    }
+    const updated = cacheService.updateAdaptiveTTLConfig(req.body);
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/admin/cache/inspect/:key
+// Inspecte une clé : présence L1/L2, TTL Redis restant, TTL adaptatif calculé
+router.get('/inspect/:key', async (req, res) => {
+  try {
+    const key = decodeURIComponent(req.params.key);
+
+    if (cacheService.inspectKey) {
+      const info = await cacheService.inspectKey(key);
+      return res.json({ success: true, data: info });
+    }
+
+    // Fallback minimal si patch non appliqué
+    const redisClient = getRedisClient();
+    const ttl = redisClient ? await redisClient.ttl(key) : -2;
+    res.json({
+      success: true,
+      data: { key, inL1: cacheService.memoryCache.has(key), inL2: ttl > -2, redisTTL: ttl },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/admin/cache/strategy/popular
+// Top-10 clés les plus utilisées selon la stratégie active
+router.get('/strategy/popular', (req, res) => {
+  try {
+    const strategy = cacheService.strategy;
+
+    if (!strategy) {
+      // Fallback sur getPopularKeys existant
+      return res.json({ success: true, data: cacheService.getPopularKeys(10) });
+    }
+
+    const entries = [...(strategy._meta?.entries() ?? [])];
+    const sorted  = entries
+      .sort((a, b) => (b[1].hits ?? b[1].freq ?? 0) - (a[1].hits ?? a[1].freq ?? 0))
+      .slice(0, 10)
+      .map(([key, meta]) => ({
+        key,
+        score:       meta.hits ?? meta.freq ?? 0,
+        lastAccess:  meta.lastAccess ?? meta.insertedAt ?? 0,
+        computedTTL: cacheService.adaptiveTTL
+          ? cacheService.adaptiveTTL.compute(key, meta)
+          : null,
+      }));
+
+    res.json({ success: true, data: sorted });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// ROUTE CONFIG (conservée de l'existant)
+// ════════════════════════════════════════════════════════════
+
+router.get('/config', (req, res) => {
+  const smartData = cacheService.getAdaptiveTTLConfig
+    ? cacheService.getAdaptiveTTLConfig()
+    : null;
+
   res.json({
     success: true,
     data: {
       ttlConfig: {
-        textSearch:     300,   // 5 minutes en secondes
-        priceFilter:    600,   // 10 minutes
-        categoryFilter: 1800,  // 30 minutes
-        generalList:    3600,  // 1 heure
-        suggestions:    120,   // 2 minutes
+        textSearch:     300,
+        priceFilter:    600,
+        categoryFilter: 1800,
+        generalList:    3600,
+        suggestions:    120,
       },
-      // Tu peux aussi renvoyer les métriques globales ici
-      metrics: {
-        hitRate: 85,
-        l1Hits: 124,
-        l2Hits: 45,
-        totalMisses: 23,
-        totalRequests: 192
-      }
-    }
+      smartCache: smartData,
+      metrics: cacheService.getMetrics ? cacheService.getMetrics() : null,
+    },
   });
 });
 

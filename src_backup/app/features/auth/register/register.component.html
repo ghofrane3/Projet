@@ -1,0 +1,250 @@
+<div class="register-page">
+
+  <!-- Section gauche - Citation -->
+  <div class="register-left">
+    <div class="quote-container">
+      <svg class="quote-icon" width="60" height="60" viewBox="0 0 24 24" fill="none">
+        <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"
+              fill="currentColor" opacity="0.3"/>
+        <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"
+              fill="currentColor" opacity="0.3"/>
+      </svg>
+
+      <blockquote class="quote-text">
+        La mode passe, le style reste
+      </blockquote>
+
+      <div class="quote-author">— COCO CHANEL</div>
+      <div class="quote-decoration"></div>
+    </div>
+  </div>
+
+  <!-- Section droite - Formulaire -->
+  <div class="register-right">
+    <div class="register-form-container">
+
+      <!-- Logo -->
+      <div class="form-logo">
+        <span class="logo-text">Fashion</span>
+        <span class="logo-accent">Store</span>
+      </div>
+
+      <!-- Titre -->
+      <h1 class="form-title">Créer un compte</h1>
+      <p class="form-subtitle">Rejoignez la communauté Fashion Store</p>
+
+      <!-- Message succès -->
+      <div class="alert alert-success" *ngIf="success">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span>Compte créé avec succès ! Vérifiez votre email.</span>
+      </div>
+
+      <!-- Erreur -->
+      <div class="alert alert-error" *ngIf="error">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ error }}</span>
+      </div>
+
+      <!-- Formulaire -->
+      <form (ngSubmit)="onSubmit()" class="register-form">
+
+        <!-- Prénom et Nom -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="firstName">PRÉNOM</label>
+            <input
+              type="text"
+              id="firstName"
+              [(ngModel)]="firstName"
+              name="firstName"
+              placeholder="Marie"
+              required
+              [disabled]="loading"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="lastName">NOM</label>
+            <input
+              type="text"
+              id="lastName"
+              [(ngModel)]="lastName"
+              name="lastName"
+              placeholder="Dupont"
+              required
+              [disabled]="loading"
+            >
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label for="email">E-MAIL</label>
+          <input
+            type="email"
+            id="email"
+            [(ngModel)]="email"
+            name="email"
+            placeholder="votre@email.com"
+            required
+            [disabled]="loading"
+          >
+        </div>
+
+        <!-- Mot de passe -->
+        <div class="form-group">
+          <label for="password">MOT DE PASSE</label>
+          <div class="password-input">
+            <input
+              [type]="showPassword ? 'text' : 'password'"
+              id="password"
+              [(ngModel)]="password"
+              name="password"
+              placeholder="8 caractères minimum"
+              required
+              [disabled]="loading"
+              (input)="onPasswordInput()"
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              (click)="togglePasswordVisibility()"
+              [disabled]="loading"
+            >
+              <svg *ngIf="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg *ngIf="showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Barre de force du mot de passe -->
+          <div class="password-strength" *ngIf="passwordTouched && password">
+            <div class="strength-bar-track">
+              <div
+                class="strength-bar-fill"
+                [style.width.%]="passwordStrength.score * 20"
+                [style.background-color]="passwordStrength.color"
+              ></div>
+            </div>
+            <span class="strength-label" [style.color]="passwordStrength.color">
+              {{ passwordStrength.label }}
+            </span>
+          </div>
+
+          <!-- Checklist des critères -->
+          <ul class="password-criteria" *ngIf="passwordTouched && password">
+            <li [class.valid]="criteria.length">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline *ngIf="criteria.length"  points="20 6 9 17 4 12"/>
+                <line    *ngIf="!criteria.length" x1="18" y1="6" x2="6" y2="18"/>
+                <line    *ngIf="!criteria.length" x1="6"  y1="6" x2="18" y2="18"/>
+              </svg>
+              Au moins 8 caractères
+            </li>
+            <li [class.valid]="criteria.uppercase">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline *ngIf="criteria.uppercase"  points="20 6 9 17 4 12"/>
+                <line    *ngIf="!criteria.uppercase" x1="18" y1="6" x2="6" y2="18"/>
+                <line    *ngIf="!criteria.uppercase" x1="6"  y1="6" x2="18" y2="18"/>
+              </svg>
+              Au moins une majuscule
+            </li>
+            <li [class.valid]="criteria.number">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline *ngIf="criteria.number"  points="20 6 9 17 4 12"/>
+                <line    *ngIf="!criteria.number" x1="18" y1="6" x2="6" y2="18"/>
+                <line    *ngIf="!criteria.number" x1="6"  y1="6" x2="18" y2="18"/>
+              </svg>
+              Au moins un chiffre
+            </li>
+            <li [class.valid]="criteria.special">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline *ngIf="criteria.special"  points="20 6 9 17 4 12"/>
+                <line    *ngIf="!criteria.special" x1="18" y1="6" x2="6" y2="18"/>
+                <line    *ngIf="!criteria.special" x1="6"  y1="6" x2="18" y2="18"/>
+              </svg>
+              Au moins un caractère spécial (!#$...)
+            </li>
+          </ul>
+        </div>
+
+        <!-- Confirmation mot de passe -->
+        <div class="form-group">
+          <label for="confirmPassword">CONFIRMER LE MOT DE PASSE</label>
+          <div class="password-input">
+            <input
+              [type]="showConfirmPassword ? 'text' : 'password'"
+              id="confirmPassword"
+              [(ngModel)]="confirmPassword"
+              name="confirmPassword"
+              placeholder="Répétez votre mot de passe"
+              required
+              [disabled]="loading"
+            >
+            <button
+              type="button"
+              class="toggle-password"
+              (click)="toggleConfirmPasswordVisibility()"
+              [disabled]="loading"
+            >
+              <svg *ngIf="!showConfirmPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg *ngIf="showConfirmPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Message confirmation -->
+          <p class="confirm-error" *ngIf="confirmPassword && !passwordsMatch">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Les mots de passe ne correspondent pas
+          </p>
+          <p class="confirm-success" *ngIf="confirmPassword && passwordsMatch">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Les mots de passe correspondent
+          </p>
+        </div>
+
+        <!-- Bouton submit -->
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          [disabled]="loading"
+        >
+          <span *ngIf="!loading">CRÉER MON COMPTE</span>
+          <span *ngIf="loading" class="loading-spinner"></span>
+        </button>
+
+        <!-- Lien connexion -->
+        <div class="form-login">
+          <span>Déjà membre ?</span>
+          <a routerLink="/login">Se connecter</a>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+</div>

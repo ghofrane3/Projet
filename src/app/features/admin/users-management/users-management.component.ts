@@ -54,7 +54,6 @@ export class UsersManagementComponent implements OnInit {
         error: (error) => {
           console.error('❌ Erreur chargement:', error);
           this.loading = false;
-          alert('Erreur lors du chargement des utilisateurs');
         }
       });
   }
@@ -74,12 +73,10 @@ export class UsersManagementComponent implements OnInit {
       .subscribe({
         next: (response: any) => {
           console.log('✅ Utilisateur vérifié:', response);
-          alert(`✅ ${user.name} a été vérifié avec succès !`);
           this.loadUsers(); // Recharger la liste
         },
         error: (error) => {
           console.error('❌ Erreur vérification:', error);
-          alert(error.error?.message || 'Erreur lors de la vérification');
         }
       });
   }
@@ -101,11 +98,9 @@ export class UsersManagementComponent implements OnInit {
       { headers }
     ).subscribe({
       next: () => {
-        alert(`✅ Rôle mis à jour !`);
         this.loadUsers();
       },
       error: (error) => {
-        alert('Erreur lors du changement de rôle');
       }
     });
   }
@@ -124,11 +119,9 @@ export class UsersManagementComponent implements OnInit {
     this.http.delete(`http://localhost:5000/api/admin/users/${user._id}`, { headers })
       .subscribe({
         next: () => {
-          alert('✅ Utilisateur supprimé');
           this.loadUsers();
         },
         error: (error) => {
-          alert('Erreur lors de la suppression');
         }
       });
   }

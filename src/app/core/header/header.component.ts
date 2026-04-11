@@ -122,7 +122,6 @@ export class HeaderComponent implements OnInit {
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
-        alert('❌ Erreur lors de la suppression');
       }
     });
   }
@@ -141,7 +140,6 @@ export class HeaderComponent implements OnInit {
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
-        alert('❌ Erreur lors de la mise à jour');
       }
     });
   }

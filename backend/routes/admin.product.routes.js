@@ -1,252 +1,160 @@
-import express from 'express';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import Product from '../models/Product.js';
+import express                         from 'express';
+import Product                          from '../models/Product.js';
 import { authenticateUser, authorizeAdmin } from '../middleware/auth.js';
+import { upload, deleteImage, deleteImages } from '../config/cloudinary.js';
 
 const router = express.Router();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// ==========================================
-// CONFIGURATION MULTER (Upload d'images)
-// ==========================================
-
-// Créer le dossier uploads s'il n'existe pas
-const uploadDir = path.join(__dirname, '..', 'uploads', 'products');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-  console.log('📁 Dossier uploads créé:', uploadDir);
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2)}-${file.originalname.replace(/\s+/g, '-')}`;
-    cb(null, uniqueName);
-  }
-});
-
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Format non supporté. Utilisez JPG, PNG ou WebP'), false);
-  }
-};
-
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5 MB max par image
-    files: 5                    // Max 5 images
-  }
-});
-
-// ==========================================
-// MIDDLEWARE AUTH - Toutes les routes admin
-// ==========================================
+// ════════════════════════════════════════════════════════════
+// AUTH — toutes les routes admin
+// ════════════════════════════════════════════════════════════
 router.use(authenticateUser);
 router.use(authorizeAdmin);
 
-// ==========================================
-// ROUTES PRODUITS
-// ==========================================
+// ════════════════════════════════════════════════════════════
+// HELPER — Parser les champs JSON envoyés par FormData
+// ════════════════════════════════════════════════════════════
+const safeParseArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return value.trim() !== '' ? [value] : [];
+    }
+  }
+  return [];
+};
 
-// ─────────────────────────────────────────
-// POST /api/admin/products - Créer produit
-// ─────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// POST /api/admin/products — Créer un produit
+// ════════════════════════════════════════════════════════════
 router.post('/products', upload.array('images', 5), async (req, res) => {
   try {
-    console.log('📦 Création de produit');
-    console.log('📋 Body reçu:', JSON.stringify(req.body, null, 2));
-    console.log('🖼️ Fichiers reçus:', req.files?.length || 0);
+    console.log('📦 Création produit | body:', JSON.stringify(req.body));
+    console.log('🖼️  Images Cloudinary reçues:', req.files?.length || 0);
 
     const {
       name, description, price, originalPrice,
       category, gender, sizes, colors,
-      stock, material, brand, sku,
-      tags, featured
+      stock, material, brand, sku, tags, featured
     } = req.body;
 
-    // ── Validation ──────────────────────────
+    // ── Validation ──────────────────────────────────────
     const errors = [];
-    if (!name || name.trim() === '') errors.push('Le nom est requis');
-    if (!description || description.trim() === '') errors.push('La description est requise');
+    if (!name?.trim())                                     errors.push('Le nom est requis');
+    if (!description?.trim())                              errors.push('La description est requise');
     if (!price || isNaN(parseFloat(price)) || parseFloat(price) <= 0) errors.push('Le prix est invalide');
-    if (!category || category.trim() === '') errors.push('La catégorie est requise');
+    if (!category?.trim())                                 errors.push('La catégorie est requise');
 
-    // FIX: stock peut être "0" (string) — vérification corrigée
     const stockValue = parseInt(stock);
-    if (stock === undefined || stock === null || stock === '' || isNaN(stockValue) || stockValue < 0) {
+    if (stock === undefined || stock === null || stock === '' || isNaN(stockValue) || stockValue < 0)
       errors.push('Le stock est invalide');
-    }
-
-    // FIX: Images rendues optionnelles — l'erreur 500 venait souvent d'ici
-    // Si vous voulez les rendre obligatoires, décommentez la ligne ci-dessous :
-    // if (!req.files || req.files.length === 0) errors.push('Au moins une image est requise');
 
     if (errors.length > 0) {
-      // Supprimer les fichiers uploadés si validation échoue
-      req.files?.forEach(f => {
-        if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-      });
-      console.warn('⚠️ Erreurs de validation:', errors);
+      // ✅ Supprimer les images déjà uploadées sur Cloudinary si validation échoue
+      if (req.files?.length) {
+        await deleteImages(req.files.map(f => f.filename));
+      }
       return res.status(400).json({ success: false, errors });
     }
 
-    // ── Construire les images ────────────────
-    const images = (req.files && req.files.length > 0)
-      ? req.files.map((file, index) => ({
-          url: `/uploads/products/${file.filename}`,
-          publicId: file.filename,
-          isMain: index === 0
-        }))
-      : []; // Tableau vide si pas d'images
+    // ── Construire le tableau images depuis Cloudinary ──
+    // req.files contient : { path (url Cloudinary), filename (public_id), ... }
+    const images = (req.files || []).map((file, index) => ({
+      url:      file.path,       // URL sécurisée Cloudinary (https://res.cloudinary.com/...)
+      publicId: file.filename,   // Public ID Cloudinary (pour suppression future)
+      isMain:   index === 0,
+    }));
 
-    // ── Parser les données JSON en toute sécurité ──
-    const safeParseArray = (value) => {
-      if (!value) return [];
-      if (Array.isArray(value)) return value;
-      if (typeof value === 'string') {
-        try {
-          const parsed = JSON.parse(value);
-          return Array.isArray(parsed) ? parsed : [parsed];
-        } catch {
-          return value.trim() !== '' ? [value] : [];
-        }
-      }
-      return [];
-    };
-
-    const parsedSizes  = safeParseArray(sizes);
-    const parsedColors = safeParseArray(colors);
-    const parsedTags   = safeParseArray(tags);
-
-    console.log('📐 Tailles parsées:', parsedSizes);
-    console.log('🎨 Couleurs parsées:', parsedColors);
-
-    // ── Construire l'objet produit ───────────
-    const productData = {
+    // ── Créer le produit ────────────────────────────────
+    const product = await Product.create({
       name:          name.trim(),
       description:   description.trim(),
       price:         parseFloat(price),
-      originalPrice: originalPrice && !isNaN(parseFloat(originalPrice)) ? parseFloat(originalPrice) : undefined,
+      originalPrice: originalPrice && !isNaN(parseFloat(originalPrice))
+                       ? parseFloat(originalPrice) : undefined,
       category:      category.trim(),
       gender:        gender || 'Unisexe',
-      sizes:         parsedSizes,
-      colors:        parsedColors,
+      sizes:         safeParseArray(sizes),
+      colors:        safeParseArray(colors),
       images,
       stock:         stockValue,
-      material:      material ? material.trim() : '',
-      brand:         brand ? brand.trim() : 'Fashion Store',
-      sku:           sku && sku.trim() !== '' ? sku.trim() : undefined,
-      tags:          parsedTags,
+      material:      material?.trim() || '',
+      brand:         brand?.trim() || 'Fashion Store',
+      sku:           sku?.trim() || undefined,
+      tags:          safeParseArray(tags),
       featured:      featured === 'true' || featured === true,
-      isActive:      true
-    };
-
-    console.log('📝 Données produit à créer:', JSON.stringify(productData, null, 2));
-
-    // ── Créer le produit ─────────────────────
-    const product = await Product.create(productData);
-
-    console.log('✅ Produit créé avec succès, ID:', product._id);
-
-    res.status(201).json({
-      success: true,
-      message: 'Produit créé avec succès !',
-      product
+      isActive:      true,
     });
+
+    console.log('✅ Produit créé:', product._id);
+    res.status(201).json({ success: true, message: 'Produit créé avec succès !', product });
 
   } catch (error) {
-    // Nettoyer les fichiers uploadés si erreur
-    req.files?.forEach(f => {
-      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-    });
+    // Nettoyage Cloudinary si erreur après upload
+    if (req.files?.length) {
+      await deleteImages(req.files.map(f => f.filename));
+    }
 
-    // Log détaillé pour identifier la cause exacte du 500
-    console.error('❌ Erreur création produit:');
-    console.error('   Nom:', error.name);
-    console.error('   Message:', error.message);
-    console.error('   Stack:', error.stack);
+    console.error('❌ Erreur création produit:', error.name, error.message);
 
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
-      console.error('   Erreurs de validation Mongoose:', errors);
       return res.status(400).json({ success: false, errors });
     }
-
     if (error.code === 11000) {
-      // Erreur de doublon (ex: SKU unique)
       const field = Object.keys(error.keyValue || {})[0] || 'champ';
-      return res.status(400).json({
-        success: false,
-        errors: [`La valeur du champ "${field}" existe déjà.`]
-      });
+      return res.status(400).json({ success: false, errors: [`"${field}" existe déjà`] });
     }
-
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur lors de la création du produit',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Erreur serveur', error: error.message });
   }
 });
 
-// ─────────────────────────────────────────
-// PUT /api/admin/products/:id - Modifier
-// ─────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// PUT /api/admin/products/:id — Modifier un produit
+// ════════════════════════════════════════════════════════════
 router.put('/products/:id', upload.array('images', 5), async (req, res) => {
   try {
-    console.log('✏️ Modification produit:', req.params.id);
-
     const product = await Product.findById(req.params.id);
     if (!product) {
-      req.files?.forEach(f => {
-        if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-      });
+      if (req.files?.length) await deleteImages(req.files.map(f => f.filename));
       return res.status(404).json({ success: false, message: 'Produit non trouvé' });
-    }
-
-    // Si nouvelles images uploadées
-    if (req.files && req.files.length > 0) {
-      // Supprimer les anciennes images locales
-      product.images.forEach(img => {
-        const filePath = path.join(__dirname, '..', img.url);
-        if (fs.existsSync(filePath)) {
-          try { fs.unlinkSync(filePath); } catch (e) { console.warn('⚠️ Impossible de supprimer:', filePath); }
-        }
-      });
-
-      req.body.images = req.files.map((file, index) => ({
-        url: `/uploads/products/${file.filename}`,
-        publicId: file.filename,
-        isMain: index === 0
-      }));
     }
 
     const updates = { ...req.body };
 
-    if (updates.price) updates.price = parseFloat(updates.price);
-    if (updates.stock !== undefined) updates.stock = parseInt(updates.stock);
-    if (updates.originalPrice) updates.originalPrice = parseFloat(updates.originalPrice);
-    if (updates.featured !== undefined) updates.featured = updates.featured === 'true' || updates.featured === true;
+    // ── Nouvelles images ────────────────────────────────
+    if (req.files?.length > 0) {
+      // Supprimer les anciennes images de Cloudinary
+      const oldPublicIds = product.images
+        .map(img => img.publicId)
+        .filter(Boolean);
+      if (oldPublicIds.length) await deleteImages(oldPublicIds);
 
-    if (updates.sizes && typeof updates.sizes === 'string') {
-      try { updates.sizes = JSON.parse(updates.sizes); } catch { updates.sizes = [updates.sizes]; }
+      updates.images = req.files.map((file, index) => ({
+        url:      file.path,
+        publicId: file.filename,
+        isMain:   index === 0,
+      }));
     }
-    if (updates.colors && typeof updates.colors === 'string') {
-      try { updates.colors = JSON.parse(updates.colors); } catch { updates.colors = [updates.colors]; }
-    }
-    if (updates.tags && typeof updates.tags === 'string') {
-      try { updates.tags = JSON.parse(updates.tags); } catch { updates.tags = [updates.tags]; }
-    }
+
+    // ── Parser les champs numériques / booléens ─────────
+    if (updates.price)            updates.price         = parseFloat(updates.price);
+    if (updates.stock !== undefined) updates.stock      = parseInt(updates.stock);
+    if (updates.originalPrice)    updates.originalPrice = parseFloat(updates.originalPrice);
+    if (updates.featured !== undefined)
+      updates.featured = updates.featured === 'true' || updates.featured === true;
+
+    // ── Parser les champs tableau ───────────────────────
+    ['sizes', 'colors', 'tags'].forEach(field => {
+      if (updates[field] && typeof updates[field] === 'string') {
+        try   { updates[field] = JSON.parse(updates[field]); }
+        catch { updates[field] = [updates[field]]; }
+      }
+    });
 
     const updated = await Product.findByIdAndUpdate(
       req.params.id,
@@ -258,41 +166,33 @@ router.put('/products/:id', upload.array('images', 5), async (req, res) => {
     res.json({ success: true, message: 'Produit mis à jour !', product: updated });
 
   } catch (error) {
-    req.files?.forEach(f => {
-      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-    });
-    console.error('❌ Erreur modification:', error.name, error.message);
+    if (req.files?.length) await deleteImages(req.files.map(f => f.filename));
+    console.error('❌ Erreur modification:', error.message);
 
     if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(e => e.message);
-      return res.status(400).json({ success: false, errors });
+      return res.status(400).json({
+        success: false,
+        errors: Object.values(error.errors).map(e => e.message)
+      });
     }
-
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// ─────────────────────────────────────────
-// DELETE /api/admin/products/:id - Supprimer
-// ─────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// DELETE /api/admin/products/:id — Supprimer un produit
+// ════════════════════════════════════════════════════════════
 router.delete('/products/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ success: false, message: 'Produit non trouvé' });
-    }
+    if (!product) return res.status(404).json({ success: false, message: 'Produit non trouvé' });
 
-    // Supprimer les images locales
-    product.images.forEach(img => {
-      const filePath = path.join(__dirname, '..', img.url);
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (e) { console.warn('⚠️ Impossible de supprimer:', filePath); }
-      }
-    });
+    // ✅ Supprimer toutes les images de Cloudinary
+    const publicIds = product.images.map(img => img.publicId).filter(Boolean);
+    if (publicIds.length) await deleteImages(publicIds);
 
     await product.deleteOne();
     console.log('✅ Produit supprimé:', req.params.id);
-
     res.json({ success: true, message: 'Produit supprimé avec succès' });
 
   } catch (error) {
@@ -301,30 +201,30 @@ router.delete('/products/:id', async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// GET /api/admin/products - Liste tous les produits
-// ─────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// GET /api/admin/products — Liste tous les produits (admin)
+// ════════════════════════════════════════════════════════════
 router.get('/products', async (req, res) => {
   try {
     const { page = 1, limit = 20, category, search, sort = '-createdAt' } = req.query;
 
-    let query = {};
+    const query = { isActive: true };
     if (category) query.category = category;
-    if (search) query.$text = { $search: search };
+    if (search)   query.$text    = { $search: search };
 
-    const products = await Product.find(query)
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit));
-
-    const total = await Product.countDocuments(query);
+    const [products, total] = await Promise.all([
+      Product.find(query)
+        .sort(sort)
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean(),
+      Product.countDocuments(query),
+    ]);
 
     res.json({
-      success: true,
-      products,
-      total,
+      success: true, products, total,
       page: parseInt(page),
-      totalPages: Math.ceil(total / parseInt(limit))
+      totalPages: Math.ceil(total / parseInt(limit)),
     });
   } catch (error) {
     console.error('❌ Erreur liste produits:', error.message);
@@ -332,38 +232,33 @@ router.get('/products', async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// GET /api/admin/stats - Statistiques
-// ─────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// GET /api/admin/stats — Statistiques dashboard
+// ════════════════════════════════════════════════════════════
 router.get('/stats', async (req, res) => {
   try {
-    const [
-      totalProducts,
-      totalStock,
-      outOfStock,
-      featuredCount,
-      categoryStats
-    ] = await Promise.all([
-      Product.countDocuments({ isActive: true }),
-      Product.aggregate([{ $group: { _id: null, total: { $sum: '$stock' } } }]),
-      Product.countDocuments({ stock: 0, isActive: true }),
-      Product.countDocuments({ featured: true }),
-      Product.aggregate([
-        { $match: { isActive: true } },
-        { $group: { _id: '$category', count: { $sum: 1 }, avgPrice: { $avg: '$price' } } },
-        { $sort: { count: -1 } }
-      ])
-    ]);
+    const [totalProducts, totalStock, outOfStock, featuredCount, categoryStats] =
+      await Promise.all([
+        Product.countDocuments({ isActive: true }),
+        Product.aggregate([{ $group: { _id: null, total: { $sum: '$stock' } } }]),
+        Product.countDocuments({ stock: 0, isActive: true }),
+        Product.countDocuments({ featured: true }),
+        Product.aggregate([
+          { $match: { isActive: true } },
+          { $group: { _id: '$category', count: { $sum: 1 }, avgPrice: { $avg: '$price' } } },
+          { $sort: { count: -1 } },
+        ]),
+      ]);
 
     res.json({
       success: true,
       stats: {
         totalProducts,
-        totalStock: totalStock[0]?.total || 0,
+        totalStock:    totalStock[0]?.total || 0,
         outOfStock,
         featuredCount,
-        categoryStats
-      }
+        categoryStats,
+      },
     });
   } catch (error) {
     console.error('❌ Erreur stats:', error.message);

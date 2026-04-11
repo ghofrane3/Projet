@@ -22,7 +22,6 @@ export class CartComponent implements OnInit {
   ngOnInit(): void {
     // Vérifier connexion
     if (!this.authService.isAuthenticated()) {
-      alert('Vous devez être connecté pour voir votre panier');
       this.router.navigate(['/auth/login']);
       return;
     }
@@ -69,7 +68,6 @@ export class CartComponent implements OnInit {
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
-        alert('❌ Erreur lors de la mise à jour');
       }
     });
   }
@@ -94,7 +92,6 @@ export class CartComponent implements OnInit {
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
-        alert('❌ Erreur lors de la mise à jour');
       }
     });
   }
@@ -113,12 +110,10 @@ export class CartComponent implements OnInit {
       next: (response) => {
         console.log('✅ Produit supprimé:', response);
         if (response.success) {
-          alert(`✅ ${item.name} supprimé du panier`);
         }
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
-        alert('❌ Erreur lors de la suppression');
       }
     });
   }
@@ -137,12 +132,10 @@ export class CartComponent implements OnInit {
       next: (response) => {
         console.log('✅ Panier vidé:', response);
         if (response.success) {
-          alert('✅ Panier vidé');
         }
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
-        alert('❌ Erreur lors du vidage du panier');
       }
     });
   }
@@ -153,7 +146,6 @@ export class CartComponent implements OnInit {
 
   goToCheckout(): void {
     if (this.isEmpty) {
-      alert('⚠️ Votre panier est vide');
       return;
     }
     this.router.navigate(['/cart/checkout']);

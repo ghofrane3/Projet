@@ -28,6 +28,5 @@ export class OrderConfirmationComponent implements OnInit {
   }
 
   trackOrder(): void {
-    alert(`Vous pouvez suivre votre commande avec le numéro : ${this.orderId}`);
   }
 }

@@ -133,9 +133,11 @@
             <label for="country">PAYS</label>
             <select id="country" [(ngModel)]="deliveryForm.country" name="country">
               <option value="France">France</option>
+              <option value="italy">italy</option>
               <option value="Belgique">Belgique</option>
               <option value="Suisse">Suisse</option>
-              <option value="Luxembourg">Luxembourg</option>
+              <option value="espaingne">espaingne</option>
+              <option value="Tunisie">Tunisie</option>
             </select>
           </div>
 
@@ -147,99 +149,26 @@
       </div>
 
       <!-- ÉTAPE 2 : Paiement -->
-      <div class="form-section" *ngIf="step === 2">
-        <h2 class="section-title">Informations de paiement</h2>
+      <!-- ÉTAPE 2 : PAIEMENT -->
+<div *ngIf="step === 2">
+  <h3>Paiement sécurisé</h3>
 
-        <!-- Logos moyens de paiement -->
-        <div class="payment-methods">
-          <img src="assets/payment/visa.svg" alt="Visa" *ngIf="false">
-          <img src="assets/payment/mastercard.svg" alt="Mastercard" *ngIf="false">
-          <span class="payment-text">💳 Paiement 100% sécurisé</span>
-        </div>
+  <!-- Widget Stripe — NE PAS changer l'id "card-element" -->
+  <div class="card-element-container">
+    <label>Informations carte</label>
+    <div id="card-element"></div>
+  </div>
 
-        <form (ngSubmit)="onPaymentSubmit()" class="checkout-form">
+  <p class="stripe-info">🔒 Paiement sécurisé par Stripe</p>
 
-          <!-- Numéro de carte -->
-          <div class="form-group">
-            <label for="cardNumber">NUMÉRO DE CARTE *</label>
-            <input
-              type="text"
-              id="cardNumber"
-              [(ngModel)]="paymentForm.cardNumber"
-              name="cardNumber"
-              placeholder="1234 5678 9012 3456"
-              maxlength="19"
-              (input)="formatCardNumber($event)"
-              required
-            >
-          </div>
+  <div *ngIf="error" class="error-message">{{ error }}</div>
 
-          <!-- Nom sur la carte -->
-          <div class="form-group">
-            <label for="cardName">NOM SUR LA CARTE *</label>
-            <input
-              type="text"
-              id="cardName"
-              [(ngModel)]="paymentForm.cardName"
-              name="cardName"
-              placeholder="Jean Dupont"
-              required
-            >
-          </div>
+  <button (click)="goBackToDelivery()" [disabled]="loading">Retour</button>
 
-          <!-- Date d'expiration et CVV -->
-          <div class="form-row">
-            <div class="form-group">
-              <label for="expiryDate">DATE D'EXPIRATION *</label>
-              <input
-                type="text"
-                id="expiryDate"
-                [(ngModel)]="paymentForm.expiryDate"
-                name="expiryDate"
-                placeholder="MM/AA"
-                maxlength="5"
-                (input)="formatExpiryDate($event)"
-                required
-              >
-            </div>
-            <div class="form-group">
-              <label for="cvv">CVV *</label>
-              <input
-                type="text"
-                id="cvv"
-                [(ngModel)]="paymentForm.cvv"
-                name="cvv"
-                placeholder="123"
-                maxlength="3"
-                required
-              >
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" class="btn btn-outline" (click)="goBackToDelivery()">
-              ← RETOUR
-            </button>
-            <button type="submit" class="btn btn-primary" [disabled]="loading">
-              <span *ngIf="!loading">CONFIRMER LE PAIEMENT</span>
-              <span *ngIf="loading" class="loading-spinner"></span>
-            </button>
-          </div>
-
-        </form>
-
-        <!-- Sécurité -->
-        <div class="security-notice">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          <div class="security-text">
-            <strong>Paiement 100% sécurisé</strong>
-            <p>Vos informations sont cryptées et sécurisées</p>
-          </div>
-        </div>
-      </div>
+  <button (click)="onPaymentSubmit()" [disabled]="loading">
+    {{ loading ? 'Traitement...' : 'Payer ' + (total | currency:'EUR') }}
+  </button>
+</div>
 
     </div>
 

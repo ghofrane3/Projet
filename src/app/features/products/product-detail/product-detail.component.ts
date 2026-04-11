@@ -122,7 +122,6 @@ export class ProductDetailComponent implements OnInit {
 
   addToCart(): void {
     if (!this.product) {
-      alert('❌ Produit non disponible');
       return;
     }
 
@@ -139,13 +138,11 @@ export class ProductDetailComponent implements OnInit {
 
     // ✅ Vérifier la taille
     if (this.product.sizes && this.product.sizes.length > 0 && !this.selectedSize) {
-      alert('⚠️ Veuillez sélectionner une taille');
       return;
     }
 
     // ✅ Vérifier le stock
     if (this.product.stock < this.quantity) {
-      alert('⚠️ Stock insuffisant');
       return;
     }
 
@@ -164,7 +161,6 @@ export class ProductDetailComponent implements OnInit {
           this.addedToCart = true;
 
           // Message de confirmation
-          alert(`✅ ${this.quantity} x ${this.product?.name} ajouté au panier !`);
 
           // Proposer d'aller au panier
           const goToCart = confirm('Voir le panier ?');
@@ -177,21 +173,16 @@ export class ProductDetailComponent implements OnInit {
             this.addedToCart = false;
           }, 2000);
         } else {
-          alert('❌ Erreur lors de l\'ajout au panier');
         }
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
 
         if (error.status === 401) {
-          alert('❌ Session expirée. Veuillez vous reconnecter.');
           this.router.navigate(['/auth/login']);
         } else if (error.status === 400) {
-          alert('❌ Données invalides. Vérifiez votre sélection.');
         } else if (error.status === 500) {
-          alert('❌ Erreur serveur. Veuillez réessayer.');
         } else {
-          alert('❌ Erreur lors de l\'ajout au panier');
         }
 
         this.addedToCart = false;

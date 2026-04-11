@@ -253,7 +253,6 @@ export class ProductListComponent implements OnInit, OnDestroy {
     }
 
     if (!this.isInStock(product)) {
-      alert('❌ Ce produit est en rupture de stock');
       return;
     }
 
@@ -262,15 +261,12 @@ export class ProductListComponent implements OnInit, OnDestroy {
 
     this.cartService.addToCart(product, 1, size, color).subscribe({
       next: (res) => {
-        if (res.success) alert(`✅ ${product.name} ajouté au panier !`);
       },
       error: (err) => {
         console.error('❌ Erreur panier:', err);
         if (err.status === 401) {
-          alert('❌ Session expirée. Veuillez vous reconnecter.');
           this.router.navigate(['/auth/login']);
         } else {
-          alert('❌ Erreur lors de l\'ajout au panier');
         }
       }
     });

@@ -190,21 +190,16 @@ export class CategoryComponent implements OnInit {
       next: (response) => {
         console.log('✅ Réponse du serveur:', response);
         if (response.success) {
-          alert(`✅ ${product.name} ajouté au panier !`);
         } else {
-          alert('❌ Erreur lors de l\'ajout au panier');
         }
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
 
         if (error.status === 401) {
-          alert('❌ Vous devez être connecté pour ajouter au panier');
           this.router.navigate(['/auth/login']);
         } else if (error.status === 500) {
-          alert('❌ Erreur serveur. Veuillez réessayer.');
         } else {
-          alert('❌ Erreur lors de l\'ajout au panier');
         }
       }
     });
@@ -232,16 +227,13 @@ export class CategoryComponent implements OnInit {
       next: (response) => {
         console.log('✅ Réponse du serveur:', response);
         if (response.success) {
-          alert(`✅ ${product.name} ajouté au panier !`);
         }
       },
       error: (error) => {
         console.error('❌ Erreur:', error);
         if (error.status === 401) {
-          alert('❌ Vous devez être connecté');
           this.router.navigate(['/auth/login']);
         } else {
-          alert('❌ Erreur lors de l\'ajout au panier');
         }
       }
     });

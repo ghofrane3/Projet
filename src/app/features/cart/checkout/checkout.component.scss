@@ -429,3 +429,17 @@
     order: -1; // Afficher le récap en premier sur mobile
   }
 }
+
+#card-element {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  margin: 8px 0 16px;
+}
+
+.stripe-info {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 16px;
+}

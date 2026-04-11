@@ -1,0 +1,34 @@
+<div class="verify-container">
+  <!-- Loading -->
+  <div class="card" *ngIf="loading">
+    <div class="spinner"></div>
+    <h2>Vérification en cours...</h2>
+    <p>Veuillez patienter</p>
+  </div>
+
+  <!-- Success -->
+  <div class="card success-card" *ngIf="success && !loading">
+    <div class="icon success-icon">✅</div>
+    <h2>Email vérifié avec succès !</h2>
+    <p>Bienvenue <strong>{{ userName }}</strong> !</p>
+    <p>Votre compte a été activé. Vous allez être redirigé vers la page de connexion...</p>
+    <button class="btn-primary" (click)="goToLogin()">
+      Se connecter maintenant
+    </button>
+  </div>
+
+  <!-- Error -->
+  <div class="card error-card" *ngIf="error && !loading">
+    <div class="icon error-icon">❌</div>
+    <h2>Erreur de vérification</h2>
+    <p class="error-message">{{ error }}</p>
+    <div class="error-actions">
+      <button class="btn-secondary" routerLink="/register">
+        Créer un nouveau compte
+      </button>
+      <button class="btn-primary" routerLink="/login">
+        Se connecter
+      </button>
+    </div>
+  </div>
+</div>
