@@ -4,10 +4,32 @@ import { authenticateUser } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Toutes les routes nécessitent une authentification
 router.use(authenticateUser);
 
-// GET /api/orders - Récupérer les commandes de l'utilisateur
+// ✅ AJOUTER cette route AVANT /:id pour éviter le conflit
+// GET /api/orders/my-orders
+router.get('/my-orders', async (req, res) => {
+  try {
+    const orders = await Order.find({ userId: req.user.userId })
+      .populate('products.productId')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: orders.length,
+      orders
+    });
+  } catch (error) {
+    console.error('❌ Erreur my-orders:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des commandes',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/orders
 router.get('/', async (req, res) => {
   try {
     const orders = await Order.find({ userId: req.user.userId })
@@ -27,7 +49,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/orders - Créer une commande
+// POST /api/orders
 router.post('/', async (req, res) => {
   try {
     const { products, shippingAddress, totalAmount } = req.body;
@@ -61,7 +83,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/orders/:id - Récupérer une commande spécifique
+// GET /api/orders/:id — DOIT rester après /my-orders
 router.get('/:id', async (req, res) => {
   try {
     const order = await Order.findOne({
@@ -81,9 +103,11 @@ router.get('/:id', async (req, res) => {
       order
     });
   } catch (error) {
+    console.error('❌ Erreur get order by id:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la récupération de la commande'
+      message: 'Erreur lors de la récupération de la commande',
+      error: error.message
     });
   }
 });

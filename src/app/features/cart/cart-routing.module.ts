@@ -4,13 +4,14 @@ import { RouterModule, Routes } from '@angular/router';
 import { CartComponent } from './cart/cart.component';
 import { CheckoutComponent } from './checkout/checkout.component';
 import { OrderConfirmationComponent } from './order-confirmation/order-confirmation.component';
+import { OrderDetailComponent } from './order-detail/order-detail.component';
 import { authGuard } from '../../guards/auth.guard';
-import { CartService } from '../../services/cart.service';
 
 const routes: Routes = [
-  { path: '', component: CartService },
+  { path: '', component: CartComponent },                                                              // ✅ Fix #1
   { path: 'checkout', component: CheckoutComponent, canActivate: [authGuard] },
-  { path: 'confirmation/:orderId', component: OrderConfirmationComponent, canActivate: [authGuard] }
+  { path: 'confirmation/:orderId', component: OrderConfirmationComponent, canActivate: [authGuard] },
+  { path: 'order/:id', component: OrderDetailComponent, canActivate: [authGuard] },                   // ✅ Fix #3
 ];
 
 @NgModule({

@@ -52,7 +52,7 @@ const routes: Routes = [
       // ✅ AJOUTER CETTE ROUTE
       {
         path: 'orders',
-        loadComponent: () => import('../../components/orders/orders.component')
+        loadComponent: () => import('../../features/admin/orders/orders.component')
           .then(m => m.OrdersComponent),
         title: 'Admin - Commandes'
       }

@@ -175,13 +175,13 @@ export class CheckoutComponent implements OnInit, AfterViewInit {
         ).subscribe({
           next: () => {
             this.cartService.clearCart().subscribe();
-            this.router.navigate(['/order-confirmation'], {
+            this.router.navigate(['/cart/confirmation', res.orderId], {
               queryParams: { orderId: res.orderId }
             });
           },
           error: () => {
             // Le paiement a réussi même si la confirmation échoue
-            this.router.navigate(['/order-confirmation'], {
+            this.router.navigate(['/cart/confirmation', res.orderId], {
               queryParams: { orderId: res.orderId }
             });
           }

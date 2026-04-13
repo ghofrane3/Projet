@@ -4,43 +4,80 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+
 import connectDB from './config/db.js';
 import { connectRedis } from './config/redis.js';
 
-import authRoutes        from './routes/auth.routes.js';
-import productRoutes     from './routes/product.routes.js';
-import orderRoutes       from './routes/order.routes.js';
-import adminRoutes       from './routes/admin.js';
+import authRoutes         from './routes/auth.routes.js';
+import productRoutes      from './routes/product.routes.js';
+import orderRoutes        from './routes/order.routes.js';
+import adminRoutes        from './routes/admin.js';
 import adminProductRoutes from './routes/admin.product.routes.js';
-import adminCacheRoutes  from './routes/admin.cache.routes.js';
-import cartRoutes        from './routes/cart.routes.js';
-import paymentRoutes     from './routes/payment.js';
+import adminCacheRoutes   from './routes/admin.cache.routes.js';
+import cartRoutes         from './routes/cart.routes.js';
+import paymentRoutes      from './routes/payment.js';
 
-import cacheService        from './services/cache.service.js';
-// ════════════════════════════════════════════════════════════
-// NOUVEAU  — import du patch Smart Cache
-// ════════════════════════════════════════════════════════════
-import { patchCacheService } from './config/cache.config.js';
+import cacheService           from './services/cache.service.js';
+import { patchCacheService }  from './config/cache.config.js';
+import evictionEmitter        from './services/eviction.emitter.js'; // NOUVEAU
 
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const app = express();
+const __dirname    = path.dirname(fileURLToPath(import.meta.url));
+const app          = express();
+const httpServer   = createServer(app);                              // NOUVEAU — serveur HTTP natif
 
 const PORT         = process.env.PORT         || 5000;
 const NODE_ENV     = process.env.NODE_ENV     || 'development';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:4200';
 
 // ════════════════════════════════════════════════════════════
-// MIDDLEWARE CORS
+// SOCKET.IO — Configuration CORS identique à Express
+// ════════════════════════════════════════════════════════════
+const io = new SocketIOServer(httpServer, {                          // NOUVEAU
+  cors: {
+    origin: [
+      FRONTEND_URL,
+      'http://localhost:4200',
+      'http://127.0.0.1:4200',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST'],
+  },
+  path: '/socket.io',
+  transports: ['websocket', 'polling'],
+});
+
+// ── Namespace dédié au cache admin ───────────────────────────────────────
+const cacheNsp = io.of('/cache-admin');
+
+cacheNsp.on('connection', (socket) => {
+  console.log(`🔌 [Socket] Admin connecté  : ${socket.id}`);
+
+  // Envoyer les métriques courantes dès la connexion
+  socket.emit('metrics:snapshot', cacheService.getMetrics());
+
+  socket.on('disconnect', () => {
+    console.log(`🔌 [Socket] Admin déconnecté : ${socket.id}`);
+  });
+});
+
+// ── Brancher le service d'éviction sur Socket.IO ─────────────────────────
+evictionEmitter.setIO(cacheNsp);                                     // NOUVEAU
+
+// Exporter io pour les autres modules si nécessaire
+export { io, cacheNsp };
+
+// ════════════════════════════════════════════════════════════
+// MIDDLEWARE CORS Express
 // ════════════════════════════════════════════════════════════
 const corsOptions = {
   origin: [
     FRONTEND_URL,
     'http://localhost:4200',
-    'http://localhost:5114',
     'http://127.0.0.1:4200',
-    'http://127.0.0.1:5114',
   ],
   credentials:    true,
   methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -60,7 +97,7 @@ app.get('/', (req, res) => {
   res.json({
     message:     '🛍️ Fashion Store API - Maison Élite',
     status:      'running',
-    version:     '2.1.0',
+    version:     '2.2.0',
     environment: NODE_ENV,
     features: [
       '✅ Cache 3 Niveaux (L1/L2/L3)',
@@ -70,6 +107,7 @@ app.get('/', (req, res) => {
       '✅ Métriques Temps Réel',
       '✅ TTL Adaptatif (chaud/froid)',
       '✅ Stratégies LRU / LFU / FIFO',
+      '✅ WebSocket Éviction Notifications', // NOUVEAU
       '✅ Authentification JWT avec httpOnly Cookies',
       '✅ Variables d\'environnement sécurisées',
     ],
@@ -103,11 +141,13 @@ app.use((req, res) => {
 // ════════════════════════════════════════════════════════════
 app.use((err, req, res, next) => {
   console.error('❌ Erreur:', err.message);
-  if (err.code === 'LIMIT_FILE_SIZE')  return res.status(400).json({ success: false, message: 'Fichier trop grand (max 5MB)' });
-  if (err.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ success: false, message: 'Maximum 5 images' });
+  if (err.code === 'LIMIT_FILE_SIZE')
+    return res.status(400).json({ success: false, message: 'Fichier trop grand (max 5MB)' });
+  if (err.code === 'LIMIT_FILE_COUNT')
+    return res.status(400).json({ success: false, message: 'Maximum 5 images' });
   res.status(500).json({
-    success: false,
-    message: NODE_ENV === 'production' ? 'Erreur serveur interne' : err.message || 'Erreur serveur interne',
+    success:  false,
+    message:  NODE_ENV === 'production' ? 'Erreur serveur interne' : err.message || 'Erreur serveur interne',
   });
 });
 
@@ -123,19 +163,15 @@ const startServer = async () => {
     console.log(`📌 Frontend URL  : ${FRONTEND_URL}`);
     console.log('');
 
-    // 1. MongoDB
     console.log('📦 Connexion MongoDB...');
     await connectDB();
 
-    // 2. Redis
     console.log('🔴 Connexion Redis...');
     await connectRedis();
 
-    // ════════════════════════════════════════════════════════
-    // NOUVEAU — Patch Smart Cache (après Redis, avant listen)
-    // ════════════════════════════════════════════════════════
+    // Patch Smart Cache (après Redis, avant listen)
     patchCacheService(cacheService, {
-      strategy: process.env.CACHE_STRATEGY    ?? 'LRU',  // LRU | LFU | FIFO
+      strategy: process.env.CACHE_STRATEGY    ?? 'LRU',
       maxSize:  Number(process.env.CACHE_MAX  ?? 500),
       ttl: {
         baseTTL:      Number(process.env.CACHE_BASE_TTL      ?? 300),
@@ -146,13 +182,17 @@ const startServer = async () => {
       },
     });
 
-    // 3. Snapshots métriques toutes les 60s
+    // Brancher l'émetteur d'éviction sur cacheService APRÈS le patch
+    evictionEmitter.attach(cacheService);                            // NOUVEAU
+
+    // Snapshots métriques toutes les 60s
     cacheService.startSnapshotTimer();
 
-    // 4. Démarrer le serveur
-    app.listen(PORT, () => {
+    // ── Démarrer le serveur HTTP (et non app.listen)
+    httpServer.listen(PORT, () => {                                  // MODIFIÉ
       console.log('\n✅ ══════════════════════════════════════');
       console.log(`   🌐 Serveur démarré  : http://localhost:${PORT}`);
+      console.log(`   🔌 WebSocket        : ws://localhost:${PORT}/cache-admin`);
       console.log(`   📁 Uploads         : http://localhost:${PORT}/uploads`);
       console.log(`   📊 Cache Stats     : http://localhost:${PORT}/api/admin/cache/stats`);
       console.log(`   📈 Cache Métriques : http://localhost:${PORT}/api/admin/cache/metrics`);
@@ -161,6 +201,7 @@ const startServer = async () => {
       console.log('✅ ══════════════════════════════════════\n');
       console.log(`💡 Cache 3 niveaux actif (L1: Mémoire, L2: Redis, L3: MongoDB)`);
       console.log(`💡 Stratégie : ${process.env.CACHE_STRATEGY ?? 'LRU'} | TTL adaptatif activé`);
+      console.log(`💡 WebSocket éviction notifications actif`);
       console.log(`💡 JWT stockés dans httpOnly cookies (sécurisé)`);
       console.log(`💡 Snapshots métriques démarrés (toutes les 60s)\n`);
     });
@@ -177,12 +218,14 @@ const startServer = async () => {
 // ════════════════════════════════════════════════════════════
 process.on('SIGINT', async () => {
   console.log('\n\n⏹️  Arrêt du serveur...');
+  io.close();
   console.log('👋 Au revoir !');
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('\n\n⏹️  Signal SIGTERM reçu, arrêt gracieux...');
+  io.close();
   process.exit(0);
 });
 

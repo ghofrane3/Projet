@@ -773,4 +773,287 @@
   animation: spin .7s linear infinite;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Ajout à cache-dashboard.component.scss
+   Copier-coller ces blocs à la FIN de votre fichier SCSS existant.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Indicateur statut WebSocket (header) ──────────────────────────────── */
+.ws-indicator {
+  display:     flex;
+  align-items: center;
+  gap:         6px;
+  padding:     4px 10px;
+  border-radius: 20px;
+  font-size:   12px;
+  font-weight: 600;
+  border:      1px solid currentColor;
+  opacity:     0.85;
+
+  .ws-dot {
+    width:  8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &.ws-connected   { color: #10b981; }
+  &.ws-connecting  { color: #f59e0b; .ws-dot { animation: blink 1s infinite; } }
+  &.ws-disconnected{ color: #6b7280; }
+  &.ws-error       { color: #ef4444; }
+}
+
+/* ─── Panel Éviction Temps Réel ─────────────────────────────────────────── */
+.eviction-panel {
+  background:    #fff;
+  border:        1.5px solid #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  overflow:      hidden;
+  box-shadow:    0 1px 4px rgba(0,0,0,.06);
+
+  &__header {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     center;
+    padding:         14px 20px;
+    background:      linear-gradient(135deg, #f8fafc 0%, #f0fdf4 100%);
+    border-bottom:   1px solid #e5e7eb;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    display:     flex;
+    align-items: center;
+    gap:         8px;
+    font-weight: 700;
+    font-size:   15px;
+    color:       #1e293b;
+
+    svg { color: #f59e0b; }
+  }
+
+  &__actions {
+    display: flex;
+    gap:     8px;
+  }
+
+  &__body {
+    padding: 0;
+  }
+}
+
+/* Badges live/offline */
+.eviction-live-tag {
+  display:     inline-flex;
+  align-items: center;
+  gap:         5px;
+  background:  #dcfce7;
+  color:       #15803d;
+  padding:     2px 8px;
+  border-radius: 10px;
+  font-size:   11px;
+  font-weight: 700;
+}
+
+.eviction-offline-tag {
+  display:     inline-flex;
+  align-items: center;
+  gap:         5px;
+  background:  #f3f4f6;
+  color:       #6b7280;
+  padding:     2px 8px;
+  border-radius: 10px;
+  font-size:   11px;
+  font-weight: 700;
+}
+
+.eviction-count-badge {
+  background:  #6366f1;
+  color:       #fff;
+  min-width:   20px;
+  height:      20px;
+  border-radius: 10px;
+  font-size:   11px;
+  font-weight: 700;
+  display:     inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+/* Pulse dot animation */
+.pulse-dot {
+  display:       inline-block;
+  width:         7px;
+  height:        7px;
+  border-radius: 50%;
+  background:    #10b981;
+  animation:     pulse-ring 1.5s ease-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(16,185,129,.6); }
+  70%  { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+  100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}
+
+/* Boutons du panel */
+.btn-toggle-panel {
+  background:  transparent;
+  border:      1px solid #d1d5db;
+  border-radius: 6px;
+  padding:     4px 10px;
+  font-size:   12px;
+  cursor:      pointer;
+  color:       #6b7280;
+  &:hover { background: #f3f4f6; }
+}
+
+.btn-clear-notifs {
+  background:  #fef2f2;
+  border:      1px solid #fecaca;
+  border-radius: 6px;
+  padding:     4px 10px;
+  font-size:   12px;
+  color:       #dc2626;
+  cursor:      pointer;
+  &:hover { background: #fee2e2; }
+}
+
+/* État vide */
+.eviction-empty {
+  display:     flex;
+  align-items: flex-start;
+  gap:         14px;
+  padding:     24px 20px;
+  color:       #9ca3af;
+  font-size:   13px;
+
+  svg { flex-shrink: 0; margin-top: 2px; color: #d1d5db; }
+
+  strong { color: #6b7280; display: block; margin-bottom: 4px; }
+  p      { margin: 0 0 4px; }
+  small  { color: #f59e0b; font-size: 11px; }
+
+  .ws-hint { display: block; }
+}
+
+/* Liste des notifications */
+.eviction-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding:    4px 0;
+}
+
+/* Item individuel */
+.eviction-item {
+  display:       flex;
+  align-items:   center;
+  gap:           12px;
+  padding:       10px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  transition:    background .2s;
+
+  &:last-child { border-bottom: none; }
+  &:hover      { background: #f8fafc; }
+
+  /* Animations d'entrée */
+  &--new {
+    background:  #f0fdf4 !important;
+    animation:   slide-in-left .35s ease-out;
+  }
+
+  &--ttl    { border-left: 3px solid #f59e0b; }
+  &--manual { border-left: 3px solid #3b82f6; }
+  &--batch  { border-left: 3px solid #8b5cf6; }
+
+  &__icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 26px;
+    text-align: center;
+  }
+
+  &__content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__key {
+    display:     flex;
+    align-items: center;
+    gap:         8px;
+    margin-bottom: 3px;
+
+    code {
+      font-size:    12px;
+      background:   #f1f5f9;
+      padding:      1px 6px;
+      border-radius: 4px;
+      color:        #334155;
+      white-space:  nowrap;
+      overflow:     hidden;
+      text-overflow: ellipsis;
+      max-width:    360px;
+    }
+  }
+
+  &__level {
+    font-size:    10px;
+    font-weight:  700;
+    background:   #e0f2fe;
+    color:        #0369a1;
+    padding:      1px 6px;
+    border-radius: 8px;
+    white-space:  nowrap;
+  }
+
+  &__meta {
+    display:     flex;
+    align-items: center;
+    gap:         10px;
+  }
+
+  &__reason {
+    font-size:  11px;
+    color:      #64748b;
+    font-weight: 500;
+  }
+
+  &__time {
+    font-size: 10px;
+    color:     #94a3b8;
+    font-family: monospace;
+  }
+
+  &__remove {
+    background: transparent;
+    border:     none;
+    color:      #cbd5e1;
+    cursor:     pointer;
+    font-size:  14px;
+    padding:    2px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    &:hover { color: #ef4444; background: #fef2f2; }
+  }
+}
+
+/* ─── Stat card WebSocket ───────────────────────────────────────────────── */
+.stat-card--ws-ok  { border-left: 3px solid #10b981 !important; }
+.stat-card--ws-off { border-left: 3px solid #9ca3af !important; opacity: .8; }
+
+/* ─── Animations ────────────────────────────────────────────────────────── */
+@keyframes slide-in-left {
+  from { transform: translateX(-16px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .3; }
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }

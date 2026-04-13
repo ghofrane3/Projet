@@ -1,11 +1,18 @@
 import {
   Component, OnInit, OnDestroy,
-  ViewChild, ElementRef, AfterViewInit
+  ViewChild, ElementRef, AfterViewInit,
+  ChangeDetectorRef
 } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient }   from '@angular/common/http';
 import { interval, Subscription } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { switchMap }    from 'rxjs/operators';
 import { Chart, registerables } from 'chart.js';
+
+import {
+  CacheWebSocketService,
+  EvictionKeyEvent,
+  EvictionBatchEvent,
+} from '../../../services/cache-websocket.service';
 
 Chart.register(...registerables);
 
@@ -30,9 +37,9 @@ interface CacheKey {
 }
 
 interface RedisInfo {
-  memory:         string;
-  totalKeys:      string;
-  uptime:         number;
+  memory:          string;
+  totalKeys:       string;
+  uptime:          number;
   uptimeFormatted: string;
 }
 
@@ -51,10 +58,9 @@ interface CacheMetrics {
   l2AvgResponseTime:  number;
   l3Requests:         number;
   l3AvgResponseTime:  number;
-  // Nouveaux champs ajoutés par patchCacheService
-  strategy?:     string;
-  strategySize?: number;
-  adaptiveTTL?:  SmartCacheConfig;
+  strategy?:          string;
+  strategySize?:      number;
+  adaptiveTTL?:       SmartCacheConfig;
 }
 
 interface MetricsSnapshot {
@@ -77,8 +83,17 @@ export interface ActionLog {
   message?: string;
 }
 
-// ── Interfaces Smart Cache ────────────────────────────────────────────────
+// ── Notification d'éviction temps réel ───────────────────────────────────────
+export interface EvictionNotif {
+  id:        number;
+  key:       string;
+  reason:    string;
+  level:     string;
+  timestamp: Date;
+  isNew:     boolean; // animation CSS
+}
 
+// ── Smart Cache ───────────────────────────────────────────────────────────────
 interface SmartCacheConfig {
   baseTTL:      number;
   minTTL:       number;
@@ -118,6 +133,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
 
   private readonly API = 'http://localhost:5000/api/admin/cache';
   private logCounter   = 0;
+  private notifCounter = 0;
 
   // ── État existant ─────────────────────────────────────────────────────────
   stats:        CacheStats | null = null;
@@ -135,8 +151,18 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
   metricsLoading  = false;
   lastRefresh:    Date | null            = null;
 
-  actionLogs:    ActionLog[]                             = [];
+  actionLogs:    ActionLog[]                              = [];
   pendingAction: { label: string; fn: () => void } | null = null;
+
+  // ── NOUVEAU : Notifications éviction temps réel ───────────────────────────
+  evictionNotifs:     EvictionNotif[] = [];
+  wsStatus:           string          = 'disconnected';
+  wsConnected         = false;
+  MAX_NOTIFS          = 50;
+  showEvictionPanel   = true;
+
+  // ── Souscriptions WebSocket ───────────────────────────────────────────────
+  private wsSubs: Subscription[] = [];
 
   // ── Charts ────────────────────────────────────────────────────────────────
   @ViewChild('hitMissChart') hitMissChartRef!: ElementRef<HTMLCanvasElement>;
@@ -158,7 +184,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
     priceFilterKeys: 0, suggestionKeys: 0, popularKeys: 0,
   };
 
-  // ── Smart Cache (NOUVEAU) ─────────────────────────────────────────────────
+  // ── Smart Cache ───────────────────────────────────────────────────────────
   smartConfig:  SmartCacheConfig | null = null;
   smartSaving   = false;
   smartForm = {
@@ -177,24 +203,29 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
   inspecting      = false;
 
   // ════════════════════════════════════════════════════════
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http:      HttpClient,
+    private wsService: CacheWebSocketService,
+    private cdr:       ChangeDetectorRef,
+  ) {}
 
   // ════════════════════════════════════════════════════════
   // LIFECYCLE
   // ════════════════════════════════════════════════════════
 
   ngOnInit(): void {
+    // Données existantes
     this.loadStats();
     this.loadRedisInfo();
     this.loadMetrics();
     this.loadHistory();
     this.loadSearchCacheKeys();
-    // NOUVEAU
     this.loadSmartConfig();
     this.loadPopularKeys();
 
     if (this.autoRefresh) this.startAutoRefresh();
 
+    // Poll métriques toutes les 5s (polling de secours si WS déconnecté)
     this.metricsSub = interval(5000).pipe(
       switchMap(() => this.http.get<any>(`${this.API}/metrics`))
     ).subscribe({
@@ -209,6 +240,9 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
       },
       error: (err) => console.error('Metrics refresh error:', err),
     });
+
+    // ── NOUVEAU : connexion WebSocket ─────────────────────────────────────
+    this.connectWebSocket();
   }
 
   ngAfterViewInit(): void {
@@ -222,6 +256,8 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
   ngOnDestroy(): void {
     this.stopAutoRefresh();
     this.metricsSub?.unsubscribe();
+    this.wsSubs.forEach(s => s.unsubscribe());
+    this.wsService.disconnect();
     this.hitMissChart?.destroy();
     this.hitRateChart?.destroy();
     this.compareChart?.destroy();
@@ -229,7 +265,97 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
   }
 
   // ════════════════════════════════════════════════════════
-  // HISTORIQUE DES ACTIONS
+  // WEBSOCKET — Connexion & événements
+  // ════════════════════════════════════════════════════════
+
+  private connectWebSocket(): void {
+    this.wsService.connect();
+
+    // ── Statut de connexion ────────────────────────────────────────────────
+    this.wsSubs.push(
+      this.wsService.status$.subscribe(status => {
+        this.wsStatus    = status;
+        this.wsConnected = status === 'connected';
+        this.cdr.markForCheck();
+      })
+    );
+
+    // ── Éviction unitaire ──────────────────────────────────────────────────
+    this.wsSubs.push(
+      this.wsService.evictionKey$.subscribe((ev: EvictionKeyEvent) => {
+        this.addEvictionNotif(ev.key, ev.reason, ev.level ?? 'L1+L2');
+        // Recharger les stats avec un léger délai
+        setTimeout(() => this.loadStats(), 300);
+      })
+    );
+
+    // ── Éviction batch ────────────────────────────────────────────────────
+    this.wsSubs.push(
+      this.wsService.evictionBatch$.subscribe((ev: EvictionBatchEvent) => {
+        const label = ev.pattern ?? `${ev.count} clés`;
+        this.addEvictionNotif(label, ev.reason, 'batch');
+        setTimeout(() => { this.loadStats(); this.loadSearchCacheKeys(); }, 300);
+      })
+    );
+
+    // ── Cache vidé ────────────────────────────────────────────────────────
+    this.wsSubs.push(
+      this.wsService.cacheCleared$.subscribe(() => {
+        this.addEvictionNotif('*', 'full_flush', 'ALL');
+        this.showMessage('Cache vidé — notification WebSocket reçue', 'success');
+        setTimeout(() => this.loadStats(), 300);
+      })
+    );
+
+    // ── Snapshot métriques en temps réel ─────────────────────────────────
+    this.wsSubs.push(
+      this.wsService.metrics$.subscribe((m: any) => {
+        this.metrics     = m;
+        this.lastRefresh = new Date();
+        this.updateHitMissChart();
+        this.updateCompareChart();
+        this.cdr.markForCheck();
+      })
+    );
+  }
+
+  // ── Ajouter une notification d'éviction ───────────────────────────────────
+  private addEvictionNotif(key: string, reason: string, level: string): void {
+    const notif: EvictionNotif = {
+      id:        ++this.notifCounter,
+      key,
+      reason,
+      level,
+      timestamp: new Date(),
+      isNew:     true,
+    };
+    this.evictionNotifs.unshift(notif);
+    if (this.evictionNotifs.length > this.MAX_NOTIFS) {
+      this.evictionNotifs.pop();
+    }
+    // Retirer le flag "isNew" après l'animation (1.5s)
+    setTimeout(() => {
+      const n = this.evictionNotifs.find(x => x.id === notif.id);
+      if (n) { n.isNew = false; this.cdr.markForCheck(); }
+    }, 1500);
+
+    this.cdr.markForCheck();
+  }
+
+  // ── API publique : effacer les notifications ──────────────────────────────
+  clearEvictionNotifs(): void { this.evictionNotifs = []; }
+
+  removeEvictionNotif(id: number): void {
+    this.evictionNotifs = this.evictionNotifs.filter(n => n.id !== id);
+  }
+
+  /** Traduit la raison en libellé lisible */
+  reasonLabel(reason: string): string {
+    return CacheWebSocketService.reasonLabel(reason);
+  }
+
+  // ════════════════════════════════════════════════════════
+  // HISTORIQUE DES ACTIONS ADMIN
   // ════════════════════════════════════════════════════════
 
   private addLog(key: string, action: string, status: 'Succès' | 'Erreur', message?: string): void {
@@ -249,7 +375,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
   confirmNo():  void { this.pendingAction = null; }
 
   // ════════════════════════════════════════════════════════
-  // DONNÉES EXISTANTES
+  // DONNÉES
   // ════════════════════════════════════════════════════════
 
   loadStats(): void {
@@ -274,6 +400,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
           this.addLog(key, 'Suppression clé', 'Succès');
           this.showMessage('Clé supprimée avec succès', 'success');
           this.loadStats(); this.loadSearchCacheKeys();
+          // Le WS notifiera automatiquement via evictionEmitter côté serveur
         },
         error: (err) => {
           this.addLog(key, 'Suppression clé', 'Erreur', err.message || 'Erreur inconnue');
@@ -519,7 +646,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
   }
 
   // ════════════════════════════════════════════════════════
-  // SMART CACHE — Config TTL Adaptatif (NOUVEAU)
+  // SMART CACHE
   // ════════════════════════════════════════════════════════
 
   loadSmartConfig(): void {
@@ -535,7 +662,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
           coldAfterMs:  res.data.coldAfterMs,
         });
       },
-      error: (err) => console.warn('smart-config non disponible (patchCacheService non appelé ?)', err.status),
+      error: (err) => console.warn('smart-config non disponible', err.status),
     });
   }
 
@@ -558,8 +685,6 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
     });
   }
 
-  // ── Top clés stratégie ────────────────────────────────────────────────────
-
   loadPopularKeys(): void {
     this.popularLoading = true;
     this.http.get<any>(`${this.API}/strategy/popular`, { withCredentials: true }).subscribe({
@@ -570,8 +695,6 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
       error: () => { this.popularLoading = false; },
     });
   }
-
-  // ── Inspecteur de clé ─────────────────────────────────────────────────────
 
   inspectKey(): void {
     const key = this.inspectKeyValue.trim();
@@ -585,8 +708,6 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
       error: () => { this.inspecting = false; },
     });
   }
-
-  // ── Helpers formatage ─────────────────────────────────────────────────────
 
   formatSmartTTL(s: number): string {
     if (s < 0) return s === -2 ? 'Absent' : 'Permanent';
@@ -603,7 +724,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
   }
 
   // ════════════════════════════════════════════════════════
-  // GRAPHIQUE 1 — Comparaison Cache vs MongoDB
+  // GRAPHIQUES
   // ════════════════════════════════════════════════════════
 
   private initCompareChart(): void {
@@ -611,9 +732,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
     this.compareChart?.destroy();
     const ctx = this.compareChartRef.nativeElement.getContext('2d');
     if (!ctx) return;
-
     const { labels, cacheData, mongoData } = this.buildCompareData();
-
     this.compareChart = new Chart(ctx, {
       type: 'bar',
       data: {
@@ -625,26 +744,10 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              afterBody: (items) => {
-                const i    = items[0].dataIndex;
-                const gain = Math.round((mongoData[i] as number) / Math.max(cacheData[i] as number, 0.1));
-                return [`Gain : ×${gain} plus rapide avec le cache`];
-              },
-            },
-          },
-        },
+        plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#5F5E5A', maxRotation: 15 } },
-          y: {
-            beginAtZero: true,
-            title: { display: true, text: 'Temps de réponse (ms)', font: { size: 11 }, color: '#5F5E5A' },
-            ticks: { font: { size: 11 }, color: '#5F5E5A', callback: (v) => v + ' ms' },
-            grid:  { color: 'rgba(0,0,0,0.06)' },
-          },
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { callback: (v) => v + ' ms' } },
         },
       },
     });
@@ -669,38 +772,27 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
     this.compareChart.update('none');
   }
 
-  // ════════════════════════════════════════════════════════
-  // GRAPHIQUE 2 — Historique 24h
-  // ════════════════════════════════════════════════════════
-
   private initHistoryChart(): void {
     if (!this.historyChartRef?.nativeElement) return;
     this.historyChart?.destroy();
     const ctx = this.historyChartRef.nativeElement.getContext('2d');
     if (!ctx) return;
-
     const { labels, cacheData, mongoData, hitData } = this.buildHistoryData();
-
     this.historyChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels,
         datasets: [
-          { label: 'Cache Redis (ms)', data: cacheData, borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.08)', fill: true,  tension: 0.4, pointRadius: 2, pointHoverRadius: 5, borderWidth: 2, yAxisID: 'y' },
-          { label: 'MongoDB (ms)',     data: mongoData, borderColor: '#D85A30', borderDash: [6, 3], backgroundColor: 'transparent',  fill: false, tension: 0.4, pointRadius: 2, pointHoverRadius: 5, borderWidth: 2, yAxisID: 'y' },
-          { label: 'Hit rate (%)',     data: hitData,   borderColor: '#185FA5', borderDash: [3, 3], backgroundColor: 'transparent',  fill: false, tension: 0.4, pointRadius: 0, pointHoverRadius: 5, borderWidth: 1.5, yAxisID: 'y2' },
+          { label: 'Cache Redis (ms)', data: cacheData, borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.08)', fill: true,  tension: 0.4, borderWidth: 2, yAxisID: 'y' },
+          { label: 'MongoDB (ms)',     data: mongoData, borderColor: '#D85A30', borderDash: [6, 3], fill: false, tension: 0.4, borderWidth: 2, yAxisID: 'y' },
+          { label: 'Hit rate (%)',     data: hitData,   borderColor: '#185FA5', borderDash: [3, 3], fill: false, tension: 0.4, borderWidth: 1.5, yAxisID: 'y2' },
         ],
       },
       options: {
-        responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: (item) => item.datasetIndex === 2 ? ` Hit rate : ${item.parsed.y}%` : ` ${item.dataset.label} : ${item.parsed.y} ms` } },
-        },
+        responsive: true, maintainAspectRatio: false,
         scales: {
-          x:  { grid: { display: false }, ticks: { font: { size: 10 }, color: '#5F5E5A', maxTicksLimit: 12 } },
-          y:  { beginAtZero: true, position: 'left',  title: { display: true, text: 'Latence (ms)',  font: { size: 11 }, color: '#5F5E5A' }, ticks: { font: { size: 10 }, color: '#5F5E5A', callback: (v) => v + ' ms' }, grid: { color: 'rgba(0,0,0,0.06)' } },
-          y2: { min: 0, max: 100, position: 'right', title: { display: true, text: 'Hit rate (%)', font: { size: 11 }, color: '#185FA5' }, ticks: { font: { size: 10 }, color: '#185FA5', callback: (v) => v + '%' }, grid: { display: false } },
+          y:  { beginAtZero: true, position: 'left',  ticks: { callback: (v) => v + ' ms' } },
+          y2: { min: 0, max: 100, position: 'right', ticks: { callback: (v) => v + '%' }, grid: { display: false } },
         },
       },
     });
@@ -733,16 +825,12 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
   private updateHistoryChart(): void {
     if (!this.historyChart) return;
     const { labels, cacheData, mongoData, hitData } = this.buildHistoryData();
-    this.historyChart.data.labels            = labels;
-    this.historyChart.data.datasets[0].data  = cacheData;
-    this.historyChart.data.datasets[1].data  = mongoData;
-    this.historyChart.data.datasets[2].data  = hitData;
+    this.historyChart.data.labels           = labels;
+    this.historyChart.data.datasets[0].data = cacheData;
+    this.historyChart.data.datasets[1].data = mongoData;
+    this.historyChart.data.datasets[2].data = hitData;
     this.historyChart.update();
   }
-
-  // ════════════════════════════════════════════════════════
-  // CHARTS EXISTANTS (hitMiss + hitRate)
-  // ════════════════════════════════════════════════════════
 
   private initCharts(): void { this.initHitMissChart(); this.initHitRateChart(); }
 
@@ -756,7 +844,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
         labels: ['L1 Hits', 'L2 Hits', 'Misses'],
         datasets: [{ data: [this.metrics?.l1Hits ?? 0, this.metrics?.l2Hits ?? 0, this.metrics?.totalMisses ?? 0], backgroundColor: ['#6366f1', '#3b82f6', '#ef4444'], borderWidth: 0, hoverOffset: 8 }],
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.parsed}` } } } },
+      options: { responsive: true, maintainAspectRatio: false },
     });
   }
 
@@ -768,9 +856,9 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
       type: 'line',
       data: {
         labels: this.metricsHistory.map(s => new Date(s.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })),
-        datasets: [{ label: 'Hit Rate (%)', data: this.metricsHistory.map(s => s.hitRate), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.08)', fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 6, borderWidth: 2 }],
+        datasets: [{ label: 'Hit Rate (%)', data: this.metricsHistory.map(s => s.hitRate), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.08)', fill: true, tension: 0.4 }],
       },
-      options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100, ticks: { callback: (v) => `${v}%`, font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 11 } } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` Hit Rate: ${ctx.parsed.y}%` } } } },
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } },
     });
   }
 
@@ -782,7 +870,7 @@ export class CacheDashboardComponent implements OnInit, OnDestroy, AfterViewInit
 
   updateHitRateChart(): void {
     if (!this.hitRateChart) return;
-    this.hitRateChart.data.labels = this.metricsHistory.map(s => new Date(s.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
+    this.hitRateChart.data.labels           = this.metricsHistory.map(s => new Date(s.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
     this.hitRateChart.data.datasets[0].data = this.metricsHistory.map(s => s.hitRate);
     this.hitRateChart.update();
   }

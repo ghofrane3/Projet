@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, Router } from '@angular/router';
+import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
@@ -26,28 +26,17 @@ export class AccountComponent implements OnInit {
   user: any = null;
 
   profileForm = {
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
-    postalCode: ''
+    firstName: '', lastName: '', email: '',
+    phone: '', address: '', city: '', postalCode: ''
   };
 
   securityForm = {
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
+    currentPassword: '', newPassword: '', confirmPassword: ''
   };
 
   orders: Order[] = [];
 
-  stats = {
-    totalOrders: 0,
-    totalSpent: 0,
-    wishlistCount: 0
-  };
+  stats = { totalOrders: 0, totalSpent: 0, wishlistCount: 0 };
 
   loading = false;
   saving = false;
@@ -57,24 +46,28 @@ export class AccountComponent implements OnInit {
   constructor(
     private authService: AuthService,
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute   // ✅ pour lire queryParams (tab=orders)
   ) {}
 
   ngOnInit(): void {
-    // ✅ VÉRIFIER SI L'UTILISATEUR EST ADMIN
     this.user = this.authService.getCurrentUser();
 
-    if (this.user && this.user.role === 'admin') {
-      // Rediriger l'admin vers son dashboard
-      console.log('👤 Admin détecté → Redirection vers dashboard');
+    if (this.user?.role === 'admin') {
       this.router.navigate(['/admin/dashboard']);
       return;
     }
 
-    // Continuer normalement pour les utilisateurs standards
+    // ✅ Lire le tab depuis queryParams si présent
+    // ex: /account?tab=orders redirigé depuis order-confirmation
+    this.route.queryParams.subscribe(params => {
+      if (params['tab']) {
+        this.activeTab = params['tab'];
+      }
+    });
+
     this.loadUserData();
     this.loadOrders();
-    this.loadStats();
   }
 
   loadUserData(): void {
@@ -84,10 +77,10 @@ export class AccountComponent implements OnInit {
         firstName: firstName || '',
         lastName: lastNameParts.join(' ') || '',
         email: this.user.email || '',
-        phone: '',
-        address: '',
-        city: '',
-        postalCode: ''
+        phone: this.user.phone || '',
+        address: this.user.address || '',
+        city: this.user.city || '',
+        postalCode: this.user.postalCode || ''
       };
     }
   }
@@ -96,39 +89,40 @@ export class AccountComponent implements OnInit {
     this.loading = true;
 
     this.http.get<any>('http://localhost:5000/api/orders/my-orders', {
-      withCredentials: true // ✅ AJOUTER
+      withCredentials: true
     }).subscribe({
       next: (response) => {
+        console.log('✅ Commandes reçues:', response);
         if (response.success) {
-          this.orders = response.orders.map((order: any) => ({
-            _id: order._id,
-            orderNumber: `#ME-${order._id.slice(-8)}`,
-            date: this.formatDate(order.createdAt),
-            total: order.totalAmount,
-            status: this.translateStatus(order.status),
-            items: order.items.length
-          }));
-        }
-        this.loading = false;
-      },
-      error: (error) => {
-        console.error('❌ Erreur chargement commandes:', error);
-        this.loading = false;
-      }
-    });
-  }
+          // ✅ supporter les deux structures backend: orders ou data
+          const rawOrders = response.orders || response.data || [];
 
-  loadStats(): void {
-    this.http.get<any>('http://localhost:5000/api/users/stats', {
-      withCredentials: true // ✅ AJOUTER
-    }).subscribe({
-      next: (response) => {
-        if (response.success) {
-          this.stats = response.stats;
+          if (Array.isArray(rawOrders)) {
+            this.orders = rawOrders.map((order: any) => {
+              // ✅ backend utilise 'products' pas 'items'
+              const itemsArray = Array.isArray(order.items) ? order.items
+                               : Array.isArray(order.products) ? order.products
+                               : [];
+              return {
+                _id: order._id,
+                orderNumber: `#ME-${order._id.slice(-8)}`,
+                date: this.formatDate(order.createdAt),
+                total: order.totalAmount || order.total || 0,
+                status: this.translateStatus(order.status),
+                items: itemsArray.length
+              };
+            });
+
+            // ✅ Stats calculées localement
+            this.stats.totalOrders = this.orders.length;
+            this.stats.totalSpent = this.orders.reduce((sum, o) => sum + o.total, 0);
+          }
         }
+        this.loading = false;
       },
       error: (error) => {
-        console.error('❌ Erreur chargement stats:', error);
+        console.error('❌ Erreur commandes:', error);
+        this.loading = false;
       }
     });
   }
@@ -153,19 +147,17 @@ export class AccountComponent implements OnInit {
     };
 
     this.http.put('http://localhost:5000/api/users/profile', updatedData, {
-      withCredentials: true // ✅ AJOUTER
+      withCredentials: true
     }).subscribe({
-      next: (response: any) => {
+      next: () => {
         this.success = 'Profil mis à jour avec succès !';
         this.saving = false;
-
-        // Mettre à jour les données locales
         if (this.authService.updateProfile) {
           this.authService.updateProfile(updatedData).subscribe();
         }
       },
       error: (error) => {
-        this.error = 'Erreur lors de la mise à jour';
+        this.error = error.error?.message || 'Erreur lors de la mise à jour';
         this.saving = false;
       }
     });
@@ -176,7 +168,6 @@ export class AccountComponent implements OnInit {
       this.error = 'Les mots de passe ne correspondent pas';
       return;
     }
-
     if (this.securityForm.newPassword.length < 8) {
       this.error = 'Le mot de passe doit contenir au moins 8 caractères';
       return;
@@ -190,15 +181,11 @@ export class AccountComponent implements OnInit {
       currentPassword: this.securityForm.currentPassword,
       newPassword: this.securityForm.newPassword
     }, {
-      withCredentials: true // ✅ AJOUTER
+      withCredentials: true
     }).subscribe({
       next: () => {
         this.success = 'Mot de passe modifié avec succès !';
-        this.securityForm = {
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: ''
-        };
+        this.securityForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
         this.saving = false;
       },
       error: (error) => {
@@ -216,31 +203,23 @@ export class AccountComponent implements OnInit {
   }
 
   formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+      day: 'numeric', month: 'long', year: 'numeric'
     });
   }
 
   translateStatus(status: string): string {
     const statusMap: { [key: string]: string } = {
-      'pending': 'En attente',
-      'processing': 'En cours',
-      'shipped': 'Expédié',
-      'delivered': 'Livré',
-      'cancelled': 'Annulé'
+      'pending': 'En attente', 'processing': 'En cours',
+      'shipped': 'Expédié', 'delivered': 'Livré', 'cancelled': 'Annulé'
     };
     return statusMap[status] || status;
   }
 
   getStatusClass(status: string): string {
     const classMap: { [key: string]: string } = {
-      'Livré': 'status-delivered',
-      'En cours': 'status-processing',
-      'En attente': 'status-pending',
-      'Expédié': 'status-shipped',
+      'Livré': 'status-delivered', 'En cours': 'status-processing',
+      'En attente': 'status-pending', 'Expédié': 'status-shipped',
       'Annulé': 'status-cancelled'
     };
     return classMap[status] || 'status-default';
@@ -248,11 +227,7 @@ export class AccountComponent implements OnInit {
 
   getInitials(): string {
     if (!this.user) return 'U';
-    return this.user.name
-      .split(' ')
-      .map((n: string) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+    return this.user.name.split(' ')
+      .map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
   }
 }

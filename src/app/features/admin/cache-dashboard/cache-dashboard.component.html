@@ -1,9 +1,17 @@
 <div class="cache-dashboard">
 
-  <!-- Header -->
+  <!-- ══════════════════════════════════════════════════════════
+       HEADER
+       ══════════════════════════════════════════════════════════ -->
   <div class="dashboard-header">
     <h1 class="title">Gestion du Cache Redis</h1>
     <div class="header-actions">
+      <!-- Indicateur statut WebSocket (NOUVEAU) -->
+      <div class="ws-indicator" [ngClass]="'ws-' + wsStatus" title="WebSocket {{ wsStatus }}">
+        <span class="ws-dot"></span>
+        <span class="ws-label">WS {{ wsStatus }}</span>
+      </div>
+
       <button class="btn btn-refresh" [class.active]="autoRefresh" (click)="toggleAutoRefresh()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="1 4 1 10 7 10"/>
@@ -33,7 +41,100 @@
     </div>
   </div>
 
-  <!-- Historique des actions -->
+  <!-- ══════════════════════════════════════════════════════════
+       PANEL ÉVICTION TEMPS RÉEL (NOUVEAU — WebSocket)
+       ══════════════════════════════════════════════════════════ -->
+  <div class="eviction-panel">
+    <div class="eviction-panel__header">
+      <div class="eviction-panel__title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        Évictions Temps Réel
+        <!-- Badge compteur -->
+        <span class="eviction-count-badge" *ngIf="evictionNotifs.length > 0">
+          {{ evictionNotifs.length }}
+        </span>
+        <!-- Indicateur WS en direct -->
+        <span class="eviction-live-tag" *ngIf="wsConnected">
+          <span class="pulse-dot"></span> LIVE
+        </span>
+        <span class="eviction-offline-tag" *ngIf="!wsConnected">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+          </svg>
+          HORS LIGNE
+        </span>
+      </div>
+      <div class="eviction-panel__actions">
+        <button class="btn-toggle-panel" (click)="showEvictionPanel = !showEvictionPanel">
+          {{ showEvictionPanel ? '▲ Réduire' : '▼ Développer' }}
+        </button>
+        <button class="btn-clear-notifs" (click)="clearEvictionNotifs()" *ngIf="evictionNotifs.length > 0">
+          Effacer tout
+        </button>
+      </div>
+    </div>
+
+    <div class="eviction-panel__body" *ngIf="showEvictionPanel">
+
+      <!-- Vide -->
+      <div class="eviction-empty" *ngIf="evictionNotifs.length === 0">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        <div>
+          <strong>En attente d'évictions…</strong>
+          <p>Les suppressions de clés (manuelles, TTL expirés, patterns) apparaîtront ici en temps réel via WebSocket.</p>
+          <small *ngIf="!wsConnected" class="ws-hint">
+            ⚠️ WebSocket non connecté — vérifiez que le serveur tourne sur le port 5000.
+          </small>
+        </div>
+      </div>
+
+      <!-- Liste des notifications -->
+      <div class="eviction-list" *ngIf="evictionNotifs.length > 0">
+        <div
+          class="eviction-item"
+          [class.eviction-item--new]="notif.isNew"
+          [class.eviction-item--ttl]="notif.reason === 'ttl_expired'"
+          [class.eviction-item--manual]="notif.reason === 'manual_delete'"
+          [class.eviction-item--batch]="notif.reason.includes('batch') || notif.reason.includes('pattern') || notif.reason.includes('flush')"
+          *ngFor="let notif of evictionNotifs"
+        >
+          <!-- Icône selon raison -->
+          <div class="eviction-item__icon">
+            <span *ngIf="notif.reason === 'manual_delete'">🗑️</span>
+            <span *ngIf="notif.reason === 'ttl_expired'">⏱️</span>
+            <span *ngIf="notif.reason.includes('pattern')">🔍</span>
+            <span *ngIf="notif.reason.includes('flush')">🧹</span>
+            <span *ngIf="notif.reason.includes('batch') && !notif.reason.includes('flush')">📦</span>
+            <span *ngIf="!['manual_delete','ttl_expired'].includes(notif.reason) && !notif.reason.includes('pattern') && !notif.reason.includes('batch') && !notif.reason.includes('flush')">⚡</span>
+          </div>
+
+          <!-- Contenu -->
+          <div class="eviction-item__content">
+            <div class="eviction-item__key">
+              <code>{{ notif.key.length > 55 ? (notif.key | slice:0:55) + '…' : notif.key }}</code>
+              <span class="eviction-item__level">{{ notif.level }}</span>
+            </div>
+            <div class="eviction-item__meta">
+              <span class="eviction-item__reason">{{ reasonLabel(notif.reason) }}</span>
+              <span class="eviction-item__time">{{ notif.timestamp | date:'HH:mm:ss' }}</span>
+            </div>
+          </div>
+
+          <!-- Bouton supprimer -->
+          <button class="eviction-item__remove" (click)="removeEvictionNotif(notif.id)">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- FIN PANEL ÉVICTION -->
+
+  <!-- ══════════════════════════════════════════════════════════
+       HISTORIQUE DES ACTIONS ADMIN
+       ══════════════════════════════════════════════════════════ -->
   <div class="action-history-section">
     <div class="action-history-header">
       <h2 class="section-title">
@@ -104,13 +205,21 @@
         <div class="stat-meta">Total</div>
       </div>
     </div>
-    <!-- Nouvelle stat stratégie -->
     <div class="stat-card" *ngIf="metrics?.strategy">
       <div class="stat-icon">⚡</div>
       <div class="stat-content">
         <div class="stat-label">Stratégie</div>
         <div class="stat-value">{{ metrics?.strategy }}</div>
         <div class="stat-meta">{{ metrics?.strategySize ?? 0 }} clés suivies</div>
+      </div>
+    </div>
+    <!-- NOUVEAU : carte WS connexion -->
+    <div class="stat-card" [class.stat-card--ws-ok]="wsConnected" [class.stat-card--ws-off]="!wsConnected">
+      <div class="stat-icon">🔌</div>
+      <div class="stat-content">
+        <div class="stat-label">WebSocket</div>
+        <div class="stat-value">{{ wsStatus | titlecase }}</div>
+        <div class="stat-meta">{{ evictionNotifs.length }} évictions reçues</div>
       </div>
     </div>
   </div>
@@ -187,11 +296,8 @@
     </ng-container>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════
-       SMART CACHE — TTL ADAPTATIF + STRATÉGIE  (NOUVEAU)
-       ══════════════════════════════════════════════════════ -->
+  <!-- SMART CACHE — TTL Adaptatif (inchangé) -->
   <div class="smart-cache-section">
-
     <div class="smart-header">
       <div class="smart-header__left">
         <span class="smart-header__badge">⚡ SMART CACHE</span>
@@ -207,219 +313,93 @@
         <button class="btn-metrics-refresh" (click)="loadPopularKeys()">Top clés</button>
       </div>
     </div>
-
-    <!-- KPI TTL row -->
     <div class="smart-kpi-row" *ngIf="smartConfig">
-      <div class="smart-kpi">
-        <div class="smart-kpi__label">TTL Base</div>
-        <div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.baseTTL) }}</div>
-      </div>
+      <div class="smart-kpi"><div class="smart-kpi__label">TTL Base</div><div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.baseTTL) }}</div></div>
       <div class="smart-kpi smart-kpi--arrow">→</div>
-      <div class="smart-kpi smart-kpi--hot">
-        <div class="smart-kpi__label">Clé chaude (≥{{ smartConfig.hotThreshold }} hits)</div>
-        <div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.baseTTL * 4) }}</div>
-        <div class="smart-kpi__sub">jusqu'à ×4</div>
-      </div>
+      <div class="smart-kpi smart-kpi--hot"><div class="smart-kpi__label">Clé chaude (≥{{ smartConfig.hotThreshold }} hits)</div><div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.baseTTL * 4) }}</div><div class="smart-kpi__sub">jusqu'à ×4</div></div>
       <div class="smart-kpi smart-kpi--arrow">→</div>
-      <div class="smart-kpi smart-kpi--cold">
-        <div class="smart-kpi__label">Clé froide ({{ formatSmartTTL(smartConfig.coldAfterMs / 1000) }} sans accès)</div>
-        <div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.minTTL) }}</div>
-        <div class="smart-kpi__sub">minimum</div>
-      </div>
+      <div class="smart-kpi smart-kpi--cold"><div class="smart-kpi__label">Clé froide ({{ formatSmartTTL(smartConfig.coldAfterMs / 1000) }} sans accès)</div><div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.minTTL) }}</div><div class="smart-kpi__sub">minimum</div></div>
     </div>
-
     <div class="smart-grid">
-
-      <!-- Colonne gauche : Configuration -->
       <div class="smart-panel">
-        <h3 class="smart-panel__title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M4.93 4.93a10 10 0 0 0 14.14 14.14"/></svg>
-          Configuration TTL Adaptatif
-        </h3>
-
+        <h3 class="smart-panel__title">Configuration TTL Adaptatif</h3>
         <div class="smart-form" *ngIf="smartConfig">
-          <label class="smart-field">
-            <span class="sf-label">TTL de base (s)</span>
-            <input type="number" [(ngModel)]="smartForm.baseTTL" min="1" class="sf-input" />
-            <small>TTL appliqué par défaut</small>
-          </label>
-          <label class="smart-field">
-            <span class="sf-label">TTL minimum (s)</span>
-            <input type="number" [(ngModel)]="smartForm.minTTL" min="1" class="sf-input" />
-            <small>Plancher pour les clés froides</small>
-          </label>
-          <label class="smart-field">
-            <span class="sf-label">TTL maximum (s)</span>
-            <input type="number" [(ngModel)]="smartForm.maxTTL" min="1" class="sf-input" />
-            <small>Plafond pour les clés chaudes</small>
-          </label>
-          <label class="smart-field">
-            <span class="sf-label">Seuil clé chaude (hits)</span>
-            <input type="number" [(ngModel)]="smartForm.hotThreshold" min="1" class="sf-input" />
-            <small>≥ N hits → TTL boosté × (hits/seuil), max ×4</small>
-          </label>
-          <label class="smart-field">
-            <span class="sf-label">Inactivité clé froide (ms)</span>
-            <input type="number" [(ngModel)]="smartForm.coldAfterMs" min="1000" step="1000" class="sf-input" />
-            <small>Sans accès depuis X ms → TTL réduit jusqu'au minimum</small>
-          </label>
-          <button class="btn-apply-smart" (click)="saveSmartConfig()" [disabled]="smartSaving">
-            {{ smartSaving ? 'Application…' : 'Appliquer sans redémarrer' }}
-          </button>
+          <label class="smart-field"><span class="sf-label">TTL de base (s)</span><input type="number" [(ngModel)]="smartForm.baseTTL" min="1" class="sf-input" /><small>TTL appliqué par défaut</small></label>
+          <label class="smart-field"><span class="sf-label">TTL minimum (s)</span><input type="number" [(ngModel)]="smartForm.minTTL" min="1" class="sf-input" /><small>Plancher pour les clés froides</small></label>
+          <label class="smart-field"><span class="sf-label">TTL maximum (s)</span><input type="number" [(ngModel)]="smartForm.maxTTL" min="1" class="sf-input" /><small>Plafond pour les clés chaudes</small></label>
+          <label class="smart-field"><span class="sf-label">Seuil clé chaude (hits)</span><input type="number" [(ngModel)]="smartForm.hotThreshold" min="1" class="sf-input" /></label>
+          <label class="smart-field"><span class="sf-label">Inactivité clé froide (ms)</span><input type="number" [(ngModel)]="smartForm.coldAfterMs" min="1000" step="1000" class="sf-input" /></label>
+          <button class="btn-apply-smart" (click)="saveSmartConfig()" [disabled]="smartSaving">{{ smartSaving ? 'Application…' : 'Appliquer sans redémarrer' }}</button>
         </div>
-
-        <!-- Règles statiques -->
         <div class="smart-rules" *ngIf="smartConfig?.rules?.length">
           <h4 class="smart-rules__title">Règles statiques (prioritaires)</h4>
           <table class="smart-rules-table">
             <thead><tr><th>Motif</th><th>TTL forcé</th></tr></thead>
-            <tbody>
-              <tr *ngFor="let r of smartConfig!.rules">
-                <td><code>{{ r.pattern }}</code></td>
-                <td class="rule-ttl">{{ formatSmartTTL(r.ttl) }}</td>
-              </tr>
-            </tbody>
+            <tbody><tr *ngFor="let r of smartConfig!.rules"><td><code>{{ r.pattern }}</code></td><td class="rule-ttl">{{ formatSmartTTL(r.ttl) }}</td></tr></tbody>
           </table>
         </div>
       </div>
-
-      <!-- Colonne droite : Top clés + Inspecteur -->
       <div class="smart-panel">
-
-        <h3 class="smart-panel__title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Top clés — stratégie {{ smartConfig?.strategyName ?? '' }}
-        </h3>
-
-        <div class="popular-loading" *ngIf="popularLoading">
-          <div class="spinner-sm"></div><span>Analyse…</span>
-        </div>
-        <div class="popular-empty" *ngIf="!popularLoading && popularKeys.length === 0">
-          <span>📭</span> Aucune donnée — effectuez des requêtes d'abord
-        </div>
+        <h3 class="smart-panel__title">Top clés — stratégie {{ smartConfig?.strategyName ?? '' }}</h3>
+        <div class="popular-loading" *ngIf="popularLoading"><div class="spinner-sm"></div><span>Analyse…</span></div>
+        <div class="popular-empty" *ngIf="!popularLoading && popularKeys.length === 0"><span>📭</span> Aucune donnée</div>
         <div class="popular-table-wrap" *ngIf="!popularLoading && popularKeys.length > 0">
           <table class="popular-table">
             <thead><tr><th>Clé</th><th>Score</th><th>TTL calc.</th></tr></thead>
             <tbody>
               <tr *ngFor="let k of popularKeys; let i = index">
-                <td class="pop-key">
-                  <span class="pop-rank">#{{ i + 1 }}</span>
-                  <code>{{ k.key.length > 40 ? (k.key | slice:0:40) + '…' : k.key }}</code>
-                </td>
-                <td>
-                  <div class="score-bar-wrap">
-                    <div class="score-bar" [style.width.%]="(k.score / (popularKeys[0].score || 1)) * 100"></div>
-                    <span class="score-val">{{ k.score }}</span>
-                  </div>
-                </td>
-                <td class="pop-ttl">
-                  <span [class]="getTTLClass(k.computedTTL)">
-                    {{ k.computedTTL !== null ? formatSmartTTL(k.computedTTL) : '—' }}
-                  </span>
-                </td>
+                <td class="pop-key"><span class="pop-rank">#{{ i + 1 }}</span><code>{{ k.key.length > 40 ? (k.key | slice:0:40) + '…' : k.key }}</code></td>
+                <td><div class="score-bar-wrap"><div class="score-bar" [style.width.%]="(k.score / (popularKeys[0].score || 1)) * 100"></div><span class="score-val">{{ k.score }}</span></div></td>
+                <td class="pop-ttl"><span [class]="getTTLClass(k.computedTTL)">{{ k.computedTTL !== null ? formatSmartTTL(k.computedTTL) : '—' }}</span></td>
               </tr>
             </tbody>
           </table>
         </div>
-
-        <!-- Inspecteur de clé -->
         <div class="key-inspector">
-          <h3 class="smart-panel__title" style="margin-top: 1.5rem">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            Inspecter une clé
-          </h3>
+          <h3 class="smart-panel__title" style="margin-top: 1.5rem">Inspecter une clé</h3>
           <div class="inspector-row">
-            <input class="sf-input inspector-input" placeholder="products:list|gender:homme"
-              [(ngModel)]="inspectKeyValue" (keyup.enter)="inspectKey()" />
-            <button class="btn-inspect" (click)="inspectKey()" [disabled]="inspecting">
-              {{ inspecting ? '…' : 'Go' }}
-            </button>
+            <input class="sf-input inspector-input" placeholder="products:list|gender:homme" [(ngModel)]="inspectKeyValue" (keyup.enter)="inspectKey()" />
+            <button class="btn-inspect" (click)="inspectKey()" [disabled]="inspecting">{{ inspecting ? '…' : 'Go' }}</button>
           </div>
           <div class="inspect-result" *ngIf="inspectResult">
-            <div class="ir-row">
-              <span class="ir-label">L1 (mémoire)</span>
-              <span class="ir-tag" [class.ir-tag--ok]="inspectResult.inL1" [class.ir-tag--no]="!inspectResult.inL1">
-                {{ inspectResult.inL1 ? '✓ Présent' : '✗ Absent' }}
-              </span>
-            </div>
-            <div class="ir-row">
-              <span class="ir-label">L2 (Redis)</span>
-              <span class="ir-tag" [class.ir-tag--ok]="inspectResult.inL2" [class.ir-tag--no]="!inspectResult.inL2">
-                {{ inspectResult.inL2 ? '✓ Présent' : '✗ Absent' }}
-              </span>
-            </div>
-            <div class="ir-row">
-              <span class="ir-label">TTL Redis restant</span>
-              <span class="ir-val">{{ formatSmartTTL(inspectResult.redisTTL) }}</span>
-            </div>
-            <div class="ir-row" *ngIf="inspectResult.computedTTL !== null">
-              <span class="ir-label">TTL adaptatif calculé</span>
-              <span class="ir-val ir-val--accent">{{ formatSmartTTL(inspectResult.computedTTL) }}</span>
-            </div>
-            <div class="ir-row" *ngIf="inspectResult.strategyMeta">
-              <span class="ir-label">Hits / Fréq.</span>
-              <span class="ir-val">{{ inspectResult.strategyMeta['hits'] ?? inspectResult.strategyMeta['freq'] ?? 0 }}</span>
-            </div>
+            <div class="ir-row"><span class="ir-label">L1 (mémoire)</span><span class="ir-tag" [class.ir-tag--ok]="inspectResult.inL1" [class.ir-tag--no]="!inspectResult.inL1">{{ inspectResult.inL1 ? '✓ Présent' : '✗ Absent' }}</span></div>
+            <div class="ir-row"><span class="ir-label">L2 (Redis)</span><span class="ir-tag" [class.ir-tag--ok]="inspectResult.inL2" [class.ir-tag--no]="!inspectResult.inL2">{{ inspectResult.inL2 ? '✓ Présent' : '✗ Absent' }}</span></div>
+            <div class="ir-row"><span class="ir-label">TTL Redis restant</span><span class="ir-val">{{ formatSmartTTL(inspectResult.redisTTL) }}</span></div>
+            <div class="ir-row" *ngIf="inspectResult.computedTTL !== null"><span class="ir-label">TTL adaptatif calculé</span><span class="ir-val ir-val--accent">{{ formatSmartTTL(inspectResult.computedTTL) }}</span></div>
+            <div class="ir-row" *ngIf="inspectResult.strategyMeta"><span class="ir-label">Hits / Fréq.</span><span class="ir-val">{{ inspectResult.strategyMeta['hits'] ?? inspectResult.strategyMeta['freq'] ?? 0 }}</span></div>
           </div>
         </div>
       </div>
     </div>
   </div>
-  <!-- FIN SMART CACHE -->
 
-  <!-- Graphique 1 — Comparaison Cache vs MongoDB -->
+  <!-- Graphiques (inchangés) -->
   <div class="graph-section">
     <div class="graph-header">
       <div>
-        <h2 class="section-title">Graphique 1 — Temps de réponse par requête : Cache Redis vs MongoDB</h2>
-        <p class="graph-subtitle">Comparaison du temps moyen de traitement (ms) pour chaque type de requête</p>
+        <h2 class="section-title">Graphique 1 — Temps de réponse : Cache Redis vs MongoDB</h2>
+        <p class="graph-subtitle">Comparaison du temps moyen de traitement (ms)</p>
       </div>
-      <div class="graph-gain-badge" *ngIf="metrics">
-        <span class="gain-number">{{ getGainLabel() }}</span>
-        <span class="gain-label">plus rapide</span>
-      </div>
-    </div>
-    <div class="graph-legend">
-      <span class="legend-item"><span class="legend-dot" style="background:#1D9E75"></span>Cache Redis (ms)</span>
-      <span class="legend-item"><span class="legend-dot" style="background:#D85A30"></span>MongoDB (ms)</span>
-    </div>
-    <div class="graph-summary-row" *ngIf="metrics">
-      <div class="summary-pill summary-pill--cache"><span class="pill-label">Cache moyen</span><span class="pill-value">{{ formatTime(metrics.l2AvgResponseTime) }}</span></div>
-      <div class="summary-pill summary-pill--mongo"><span class="pill-label">MongoDB moyen</span><span class="pill-value">{{ formatTime(metrics.l3AvgResponseTime) }}</span></div>
-      <div class="summary-pill summary-pill--hit"><span class="pill-label">Hit rate actuel</span><span class="pill-value">{{ metrics.hitRate }}%</span></div>
+      <div class="graph-gain-badge" *ngIf="metrics"><span class="gain-number">{{ getGainLabel() }}</span><span class="gain-label">plus rapide</span></div>
     </div>
     <div class="graph-wrap"><canvas #compareChart role="img" aria-label="Graphique comparatif Cache Redis vs MongoDB"></canvas></div>
   </div>
 
-  <!-- Graphique 2 — Historique 24h -->
   <div class="graph-section">
     <div class="graph-header">
       <div>
         <h2 class="section-title">Graphique 2 — Historique des 24 dernières heures</h2>
-        <p class="graph-subtitle">Évolution de la latence (ms) et du taux de cache hit sur 24h</p>
+        <p class="graph-subtitle">Évolution de la latence (ms) et du taux de cache hit</p>
       </div>
-      <span class="last-refresh-badge" *ngIf="lastRefresh">Dernière mise à jour : {{ lastRefresh | date:'HH:mm:ss' }}</span>
-    </div>
-    <div class="graph-legend">
-      <span class="legend-item"><span class="legend-dot" style="background:#1D9E75"></span>Cache Redis (ms) — axe gauche</span>
-      <span class="legend-item"><span class="legend-line legend-line--dashed" style="border-color:#D85A30"></span>MongoDB (ms) — axe gauche</span>
-      <span class="legend-item"><span class="legend-line legend-line--dotted" style="border-color:#185FA5"></span>Hit rate (%) — axe droit</span>
     </div>
     <div class="graph-wrap graph-wrap--tall"><canvas #historyChart role="img" aria-label="Historique 24h latence et hit rate"></canvas></div>
   </div>
 
-  <!-- Cache de Recherche -->
+  <!-- Cache de Recherche (inchangé) -->
   <div class="search-cache-section">
     <div class="metrics-header">
-      <h2 class="section-title">
-        Cache de Recherche
-        <span class="live-badge"    *ngIf="!searchKeysLoading">LIVE</span>
-        <span class="loading-badge" *ngIf="searchKeysLoading">Mise à jour...</span>
-      </h2>
-      <div class="metrics-actions">
-        <span class="last-refresh" *ngIf="lastRefresh">{{ lastRefresh | date:'HH:mm:ss' }}</span>
-        <button class="btn-metrics-refresh" (click)="loadSearchCacheKeys()">Actualiser</button>
-      </div>
+      <h2 class="section-title">Cache de Recherche<span class="live-badge" *ngIf="!searchKeysLoading">LIVE</span><span class="loading-badge" *ngIf="searchKeysLoading">Mise à jour...</span></h2>
+      <div class="metrics-actions"><span class="last-refresh" *ngIf="lastRefresh">{{ lastRefresh | date:'HH:mm:ss' }}</span><button class="btn-metrics-refresh" (click)="loadSearchCacheKeys()">Actualiser</button></div>
     </div>
     <div class="search-counters-grid">
       <div class="search-counter-card" [class.active]="searchStats.textSearchKeys > 0"><div class="sc-icon">🔤</div><div class="sc-count">{{ searchStats.textSearchKeys }}</div><div class="sc-label">Recherches texte</div><div class="sc-ttl">TTL 5 min</div></div>
@@ -427,7 +407,7 @@
       <div class="search-counter-card" [class.active]="searchStats.priceFilterKeys > 0"><div class="sc-icon">💰</div><div class="sc-count">{{ searchStats.priceFilterKeys }}</div><div class="sc-label">Filtres prix</div><div class="sc-ttl">TTL 10 min</div></div>
       <div class="search-counter-card" [class.active]="searchStats.suggestionKeys > 0"><div class="sc-icon">💡</div><div class="sc-count">{{ searchStats.suggestionKeys }}</div><div class="sc-label">Suggestions</div><div class="sc-ttl">TTL 2 min</div></div>
       <div class="search-counter-card" [class.active]="searchStats.popularKeys > 0"><div class="sc-icon">🔥</div><div class="sc-count">{{ searchStats.popularKeys }}</div><div class="sc-label">Populaires</div><div class="sc-ttl">TTL 1 heure</div></div>
-      <div class="search-counter-card total" [class.active]="searchStats.totalSearchKeys > 0"><div class="sc-icon">📊</div><div class="sc-count">{{ searchStats.totalSearchKeys }}</div><div class="sc-label">Total en cache</div><div class="sc-ttl">Toutes clés</div></div>
+      <div class="search-counter-card total" [class.active]="searchStats.totalSearchKeys > 0"><div class="sc-icon">📊</div><div class="sc-count">{{ searchStats.totalSearchKeys }}</div><div class="sc-label">Total en cache</div></div>
     </div>
     <div class="search-keys-section">
       <div class="search-keys-header">
@@ -435,9 +415,7 @@
         <button class="btn-clear-search" (click)="clearSearchCache()" *ngIf="searchCacheKeys.length > 0">Vider le cache recherche</button>
       </div>
       <div class="search-keys-loading" *ngIf="searchKeysLoading"><div class="spinner-sm"></div><span>Mise à jour...</span></div>
-      <div class="search-keys-empty" *ngIf="!searchKeysLoading && searchCacheKeys.length === 0">
-        <span>📭</span><div><strong>Aucune clé de recherche</strong><p>Effectuez une recherche sur le site pour voir les clés.</p></div>
-      </div>
+      <div class="search-keys-empty" *ngIf="!searchKeysLoading && searchCacheKeys.length === 0"><span>📭</span><div><strong>Aucune clé de recherche</strong><p>Effectuez une recherche sur le site pour voir les clés.</p></div></div>
       <div class="search-keys-table-wrap" *ngIf="!searchKeysLoading && searchCacheKeys.length > 0">
         <table class="keys-table">
           <thead><tr><th>Clé</th><th>Type</th><th>TTL</th><th>Taille</th><th>Action</th></tr></thead>
@@ -445,20 +423,9 @@
             <tr *ngFor="let key of searchCacheKeys">
               <td class="key-cell"><code>{{ key.key }}</code></td>
               <td><span class="search-type-badge" [ngClass]="getSearchKeyType(key.key)">{{ getSearchKeyTypeLabel(key.key) }}</span></td>
-              <td>
-                <span [ngClass]="getSearchKeyTTLClass(key.ttl)">{{ formatTTL(key.ttl) }}</span>
-                <div class="ttl-mini-bar" *ngIf="key.ttl !== 'permanent'">
-                  <div class="ttl-mini-fill" [style.width.%]="getTTLPercent(key.ttl)" [ngClass]="getSearchKeyTTLClass(key.ttl)"></div>
-                </div>
-              </td>
+              <td><span [ngClass]="getSearchKeyTTLClass(key.ttl)">{{ formatTTL(key.ttl) }}</span><div class="ttl-mini-bar" *ngIf="key.ttl !== 'permanent'"><div class="ttl-mini-fill" [style.width.%]="getTTLPercent(key.ttl)" [ngClass]="getSearchKeyTTLClass(key.ttl)"></div></div></td>
               <td>{{ key.sizeKB }} KB</td>
-              <td>
-                <button class="btn-delete" (click)="deleteKey(key.key)">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                  </svg>
-                </button>
-              </td>
+              <td><button class="btn-delete" (click)="deleteKey(key.key)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
             </tr>
           </tbody>
         </table>
@@ -466,48 +433,33 @@
     </div>
   </div>
 
-  <!-- Actions rapides -->
+  <!-- Actions rapides (inchangées) -->
   <div class="quick-actions">
     <h2 class="section-title">Actions Rapides</h2>
     <div class="actions-grid">
-      <button class="action-btn warmup" (click)="warmupCache()">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
-        <span>Préchauffer Cache</span>
-      </button>
-      <button class="action-btn pattern" (click)="deleteByPattern()">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        <span>Supprimer par Pattern</span>
-      </button>
-      <button class="action-btn danger" (click)="clearAll()">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-        <span>Vider Tout le Cache</span>
-      </button>
+      <button class="action-btn warmup"   (click)="warmupCache()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg><span>Préchauffer Cache</span></button>
+      <button class="action-btn pattern"  (click)="deleteByPattern()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Supprimer par Pattern</span></button>
+      <button class="action-btn danger"   (click)="clearAll()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><span>Vider Tout le Cache</span></button>
     </div>
   </div>
 
-  <!-- Distribution -->
+  <!-- Distribution + Clés (inchangés) -->
   <div class="distribution-section" *ngIf="stats">
     <h2 class="section-title">Répartition par Type</h2>
     <div class="distribution-grid">
       <div class="type-card" *ngFor="let type of getTypes()" [style.border-left-color]="getTypeColor(type)">
         <div class="type-name">{{ type }}</div>
         <div class="type-count">{{ stats.keysByType[type] }} clés</div>
-        <div class="type-bar">
-          <div class="type-bar-fill" [style.width.%]="(stats.keysByType[type] / stats.totalKeys) * 100" [style.background]="getTypeColor(type)"></div>
-        </div>
+        <div class="type-bar"><div class="type-bar-fill" [style.width.%]="(stats.keysByType[type] / stats.totalKeys) * 100" [style.background]="getTypeColor(type)"></div></div>
       </div>
     </div>
   </div>
 
-  <!-- Clés en cache -->
   <div class="keys-section" *ngIf="stats">
     <div class="keys-header">
       <h2 class="section-title">Clés en Cache (Top 50)</h2>
       <div class="keys-filters">
-        <select [(ngModel)]="selectedType" class="filter-select">
-          <option value="all">Tous les types</option>
-          <option *ngFor="let type of getTypes()" [value]="type">{{ type }}</option>
-        </select>
+        <select [(ngModel)]="selectedType" class="filter-select"><option value="all">Tous les types</option><option *ngFor="let type of getTypes()" [value]="type">{{ type }}</option></select>
         <input type="text" [(ngModel)]="searchPattern" placeholder="Pattern (ex: products:*)" class="filter-input">
       </div>
     </div>
@@ -520,27 +472,15 @@
             <td><span class="type-badge" [style.background]="getTypeColor(key.type)">{{ key.type }}</span></td>
             <td>{{ formatTTL(key.ttl) }}</td>
             <td>{{ key.sizeKB }} KB</td>
-            <td>
-              <button class="btn-delete" (click)="deleteKey(key.key)">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-              </button>
-            </td>
+            <td><button class="btn-delete" (click)="deleteKey(key.key)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
           </tr>
         </tbody>
       </table>
-      <div class="empty-state" *ngIf="getFilteredKeys().length === 0">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <p>Aucune clé trouvée</p>
-      </div>
+      <div class="empty-state" *ngIf="getFilteredKeys().length === 0"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/></svg><p>Aucune clé trouvée</p></div>
     </div>
   </div>
 
   <!-- Loading overlay -->
-  <div class="loading-overlay" *ngIf="loading">
-    <div class="spinner"></div>
-    <p>Chargement...</p>
-  </div>
+  <div class="loading-overlay" *ngIf="loading"><div class="spinner"></div><p>Chargement...</p></div>
 
 </div>

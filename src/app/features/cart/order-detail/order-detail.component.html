@@ -1,0 +1,209 @@
+<div class="detail-page">
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="state-view">
+    <div class="spinner"></div>
+    <p>Chargement de la commande...</p>
+  </div>
+
+  <!-- Not found -->
+  <div *ngIf="!loading && notFound" class="state-view">
+    <div class="not-found-icon">
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <rect x="4" y="4" width="40" height="40" rx="8"
+              stroke="#ccc" stroke-width="2"/>
+        <path d="M16 24h16M24 16v16" stroke="#ccc" stroke-width="2"
+              stroke-linecap="round"/>
+      </svg>
+    </div>
+    <p>Commande introuvable</p>
+    <button class="btn-ghost" (click)="goBack()">Retour à mes commandes</button>
+  </div>
+
+  <ng-container *ngIf="!loading && order">
+
+    <!-- Barre de navigation -->
+    <div class="top-nav">
+      <button class="back-btn" (click)="goBack()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Mes commandes
+      </button>
+      <span class="order-ref">{{ order.id }}</span>
+    </div>
+
+    <div class="page-content">
+
+      <!-- Statut principal -->
+      <div class="status-hero" [attr.data-status]="order.status">
+        <div class="status-left">
+          <div class="status-pill" [class]="'pill-' + currentStatusColor">
+            {{ currentStatusLabel }}
+          </div>
+          <p class="status-date">
+            Commande du {{ order.createdAt | date:'dd MMMM yyyy' }}
+          </p>
+        </div>
+        <div *ngIf="canCancel" class="status-right">
+          <button class="btn-cancel" (click)="cancelOrder()">Annuler la commande</button>
+        </div>
+      </div>
+
+      <!-- Barre de progression -->
+      <div *ngIf="order.status !== 'cancelled'" class="progress-bar-wrap">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" [style.width.%]="progressPercent"></div>
+        </div>
+        <div class="progress-steps">
+          <span *ngFor="let s of STATUS_FLOW" [class.done]="order.status === s || progressPercent > 25">
+            {{ statusConfig[s]?.label }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Timeline détaillée -->
+      <div class="card">
+        <h2 class="card-title">Suivi étape par étape</h2>
+        <div class="timeline">
+          <div
+            *ngFor="let step of timeline; let last = last"
+            class="step"
+            [class.completed]="step.completed"
+            [class.cancelled]="step.status === 'cancelled'"
+          >
+            <div class="step-track">
+              <div class="step-dot">
+                <svg *ngIf="step.completed && step.status !== 'cancelled'"
+                     width="10" height="10" viewBox="0 0 10 10">
+                  <path d="M2 5.5l2.5 2.5 4-5" stroke="currentColor" stroke-width="1.5"
+                        stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg *ngIf="step.status === 'cancelled'"
+                     width="8" height="8" viewBox="0 0 8 8">
+                  <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" stroke="currentColor" stroke-width="1.5"
+                        stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div *ngIf="!last" class="step-connector"></div>
+            </div>
+            <div class="step-body">
+              <div class="step-header">
+                <span class="step-name">{{ step.label }}</span>
+                <span *ngIf="step.date" class="step-time">
+                  {{ step.date | date:'dd/MM/yyyy — HH:mm' }}
+                </span>
+              </div>
+              <p class="step-detail">{{ step.description }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Infos livraison -->
+      <div class="two-col">
+
+        <div class="card" *ngIf="order.estimatedDelivery">
+          <h2 class="card-title">Livraison estimée</h2>
+          <p class="big-date">{{ order.estimatedDelivery | date:'dd MMMM yyyy':'':'fr' }}</p>
+          <div *ngIf="order.trackingNumber" class="tracking-num">
+            <span>N° de suivi :</span>
+            <strong>{{ order.trackingNumber }}</strong>
+          </div>
+        </div>
+
+        <div class="card" *ngIf="order.shippingAddress?.street">
+          <h2 class="card-title">Adresse de livraison</h2>
+          <div class="address">
+            <p *ngIf="order.shippingAddress.fullName">
+              <strong>{{ order.shippingAddress.fullName }}</strong>
+            </p>
+            <p>{{ order.shippingAddress.street }}</p>
+            <p>{{ order.shippingAddress.zipCode }} {{ order.shippingAddress.city }}</p>
+            <p>{{ order.shippingAddress.country }}</p>
+            <p *ngIf="order.shippingAddress.phone">{{ order.shippingAddress.phone }}</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Articles -->
+      <div class="card" *ngIf="order.items?.length">
+        <h2 class="card-title">Articles ({{ order.items.length }})</h2>
+        <div class="items-list">
+          <div *ngFor="let item of order.items" class="item-row">
+            <div class="item-img">
+              <img *ngIf="item.image" [src]="item.image" [alt]="item.name" />
+              <div *ngIf="!item.image" class="item-placeholder">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <rect x="1" y="1" width="16" height="16" rx="2"
+                        stroke="#ccc" stroke-width="1.5"/>
+                  <circle cx="6.5" cy="6.5" r="1.5" stroke="#ccc" stroke-width="1.5"/>
+                  <path d="M1 13l4-4 3 3 3-3.5 6 5.5" stroke="#ccc"
+                        stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+            <div class="item-info">
+              <p class="item-name">{{ item.name }}</p>
+              <p class="item-attrs">
+                <span *ngIf="item.size">T. {{ item.size }}</span>
+                <span *ngIf="item.color"> · {{ item.color }}</span>
+                <span> · Qté {{ item.quantity }}</span>
+              </p>
+            </div>
+            <span class="item-price">
+              {{ (item.price * item.quantity).toFixed(2) }} DT
+            </span>
+          </div>
+        </div>
+
+        <!-- Totaux -->
+        <div class="totals">
+          <div class="total-row" *ngIf="order.subtotal">
+            <span>Sous-total</span>
+            <span>{{ order.subtotal.toFixed(2) }} DT</span>
+          </div>
+          <div class="total-row" *ngIf="order.shippingCost !== undefined">
+            <span>Livraison</span>
+            <span>{{ order.shippingCost === 0 ? 'Gratuit' : order.shippingCost.toFixed(2) + ' DT' }}</span>
+          </div>
+          <div class="total-row total-final">
+            <span>Total payé</span>
+            <strong>{{ order.total.toFixed(2) }} DT</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paiement -->
+      <div class="card payment-card">
+        <h2 class="card-title">Paiement</h2>
+        <div class="payment-row">
+          <div class="payment-method">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <rect x="1" y="4" width="18" height="12" rx="2"
+                    stroke="currentColor" stroke-width="1.5"/>
+              <path d="M1 8h18" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            <span>
+              {{ order.paymentMethod === 'card' ? 'Carte bancaire (Stripe)' : order.paymentMethod }}
+            </span>
+          </div>
+          <span class="payment-status" [class]="'ps-' + order.paymentStatus">
+            {{
+              order.paymentStatus === 'paid' ? 'Payé' :
+              order.paymentStatus === 'pending' ? 'En attente' :
+              order.paymentStatus === 'failed' ? 'Échoué' : 'Remboursé'
+            }}
+          </span>
+        </div>
+        <p *ngIf="order.stripePaymentIntentId" class="stripe-ref">
+          Ref. Stripe : <code>{{ order.stripePaymentIntentId }}</code>
+        </p>
+      </div>
+
+    </div><!-- /.page-content -->
+  </ng-container>
+
+</div>

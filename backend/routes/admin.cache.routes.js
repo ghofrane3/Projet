@@ -1,6 +1,12 @@
 import express from 'express';
 import { getRedisClient } from '../config/redis.js';
 import cacheService from '../services/cache.service.js';
+import evictionEmitter from '../services/eviction.emitter.js';
+
+// ✅ FIX ÉTAPE 2 : importer le middleware d'authentification
+// Toutes les routes /api/admin/cache/* doivent être protégées
+import { authenticateUser, authorizeAdmin } from '../middleware/auth.js';
+
 import {
   getMetrics,
   getHistory,
@@ -8,6 +14,12 @@ import {
 } from '../controllers/cacheMetrics.controller.js';
 
 const router = express.Router();
+
+// ✅ FIX ÉTAPE 2 : Appliquer protect + isAdmin sur TOUTES les routes du router
+// Cela remplace le besoin de le mettre route par route.
+// Si ton middleware s'appelle différemment (ex: authMiddleware, verifyToken),
+// remplace les noms ici.
+router.use(authenticateUser, authorizeAdmin);
 
 // ════════════════════════════════════════════════════════════
 // MÉTRIQUES (ordre important : avant /stats)
@@ -95,21 +107,26 @@ router.get('/keys', async (req, res) => {
   }
 });
 
+// ✅ FIX ÉTAPE 2 : deleteKey — notifier WebSocket après suppression
 router.delete('/key/:key', async (req, res) => {
   try {
     const redisClient = getRedisClient();
     const { key }     = req.params;
+    const decodedKey  = decodeURIComponent(key);
 
-    const deleted = await redisClient.del(key);
+    const deleted = await redisClient.del(decodedKey);
 
     // Synchronise L1 + stratégie
-    cacheService.memoryCache.delete(key);
-    cacheService.memoryCacheStats.delete(key);
-    if (cacheService.strategy) cacheService.strategy.remove(key);
+    cacheService.memoryCache.delete(decodedKey);
+    cacheService.memoryCacheStats.delete(decodedKey);
+    if (cacheService.strategy) cacheService.strategy.remove(decodedKey);
+
+    // ✅ Notification WebSocket temps réel vers le dashboard Angular
+    evictionEmitter.emit(decodedKey, 'manual_delete', 'L1+L2');
 
     res.json({
       success: deleted > 0,
-      message: deleted > 0 ? `Clé ${key} supprimée` : 'Clé non trouvée',
+      message: deleted > 0 ? `Clé ${decodedKey} supprimée` : 'Clé non trouvée',
       deleted,
     });
   } catch (error) {
@@ -117,6 +134,7 @@ router.delete('/key/:key', async (req, res) => {
   }
 });
 
+// ✅ FIX ÉTAPE 2 : deleteByPattern — notifier WebSocket après suppression
 router.delete('/pattern', async (req, res) => {
   try {
     const redisClient = getRedisClient();
@@ -134,11 +152,14 @@ router.delete('/pattern', async (req, res) => {
     const deleted = await redisClient.del(keys);
 
     // Synchronise L1 + stratégie
-    for (const key of keys) {
-      cacheService.memoryCache.delete(key);
-      cacheService.memoryCacheStats.delete(key);
-      if (cacheService.strategy) cacheService.strategy.remove(key);
+    for (const k of keys) {
+      cacheService.memoryCache.delete(k);
+      cacheService.memoryCacheStats.delete(k);
+      if (cacheService.strategy) cacheService.strategy.remove(k);
     }
+
+    // ✅ Notification WebSocket — batch avec toutes les clés supprimées
+    evictionEmitter.emitBatch(keys, 'pattern_delete');
 
     res.json({ success: true, message: `${deleted} clés supprimées`, deleted, keys });
   } catch (error) {
@@ -146,12 +167,17 @@ router.delete('/pattern', async (req, res) => {
   }
 });
 
+// ✅ FIX ÉTAPE 2 : clearAll — notifier WebSocket après flush
 router.delete('/all', async (req, res) => {
   try {
     const redisClient = getRedisClient();
     await redisClient.flushDb();
     cacheService.memoryCache.clear();
     cacheService.memoryCacheStats.clear();
+
+    // ✅ Notification WebSocket — cache:cleared
+    evictionEmitter._emitCleared();
+
     res.json({ success: true, message: 'Cache entièrement vidé' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -193,7 +219,7 @@ router.get('/info', async (req, res) => {
 router.post('/warmup', async (req, res) => {
   try {
     const { types = ['products', 'categories'] } = req.body;
-    const Product   = (await import('../models/Product.js')).default;
+    const Product      = (await import('../models/Product.js')).default;
     const { setCache } = await import('../config/redis.js');
 
     const warmedUp = [];
@@ -212,6 +238,9 @@ router.post('/warmup', async (req, res) => {
       warmedUp.push('categories');
     }
 
+    // ✅ Notification WebSocket après warmup
+    evictionEmitter.emitMetrics();
+
     res.json({ success: true, message: 'Cache préchauffé', warmedUp });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -219,11 +248,9 @@ router.post('/warmup', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// NOUVELLES ROUTES — SMART CACHE (TTL Adaptatif + Stratégie)
+// SMART CACHE (TTL Adaptatif + Stratégie)
 // ════════════════════════════════════════════════════════════
 
-// GET /api/admin/cache/smart-config
-// Retourne la configuration TTL adaptatif + stratégie active
 router.get('/smart-config', (req, res) => {
   try {
     if (!cacheService.getAdaptiveTTLConfig) {
@@ -238,9 +265,6 @@ router.get('/smart-config', (req, res) => {
   }
 });
 
-// POST /api/admin/cache/smart-config
-// Modifie la configuration TTL adaptatif à chaud (sans redémarrage)
-// Body: { baseTTL, minTTL, maxTTL, hotThreshold, coldAfterMs }
 router.post('/smart-config', (req, res) => {
   try {
     if (!cacheService.updateAdaptiveTTLConfig) {
@@ -250,14 +274,13 @@ router.post('/smart-config', (req, res) => {
       });
     }
     const updated = cacheService.updateAdaptiveTTLConfig(req.body);
+    evictionEmitter.emitMetrics();
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// GET /api/admin/cache/inspect/:key
-// Inspecte une clé : présence L1/L2, TTL Redis restant, TTL adaptatif calculé
 router.get('/inspect/:key', async (req, res) => {
   try {
     const key = decodeURIComponent(req.params.key);
@@ -267,7 +290,6 @@ router.get('/inspect/:key', async (req, res) => {
       return res.json({ success: true, data: info });
     }
 
-    // Fallback minimal si patch non appliqué
     const redisClient = getRedisClient();
     const ttl = redisClient ? await redisClient.ttl(key) : -2;
     res.json({
@@ -279,14 +301,11 @@ router.get('/inspect/:key', async (req, res) => {
   }
 });
 
-// GET /api/admin/cache/strategy/popular
-// Top-10 clés les plus utilisées selon la stratégie active
 router.get('/strategy/popular', (req, res) => {
   try {
     const strategy = cacheService.strategy;
 
     if (!strategy) {
-      // Fallback sur getPopularKeys existant
       return res.json({ success: true, data: cacheService.getPopularKeys(10) });
     }
 
@@ -310,7 +329,7 @@ router.get('/strategy/popular', (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// ROUTE CONFIG (conservée de l'existant)
+// CONFIG (conservée de l'existant)
 // ════════════════════════════════════════════════════════════
 
 router.get('/config', (req, res) => {

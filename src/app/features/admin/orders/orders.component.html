@@ -1,0 +1,189 @@
+<div class="orders-admin">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h1>Gestion des Commandes</h1>
+      <p>{{ stats.total }} commande(s) · {{ stats.revenue.toFixed(2) }} DT de chiffre d'affaires</p>
+    </div>
+    <button class="btn-refresh" (click)="loadOrders()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <path d="M14 8A6 6 0 1 1 8 2" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round"/>
+        <path d="M8 2l2.5 2.5L8 7" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Actualiser
+    </button>
+  </div>
+
+  <!-- Cartes statuts -->
+  <div class="status-cards">
+    <div class="stat-card amber" (click)="statusFilter = 'pending'; applyFilters()">
+      <span class="stat-num">{{ stats.counts.pending }}</span>
+      <span class="stat-lbl">En attente</span>
+    </div>
+    <div class="stat-card blue" (click)="statusFilter = 'processing'; applyFilters()">
+      <span class="stat-num">{{ stats.counts.processing }}</span>
+      <span class="stat-lbl">En préparation</span>
+    </div>
+    <div class="stat-card purple" (click)="statusFilter = 'shipped'; applyFilters()">
+      <span class="stat-num">{{ stats.counts.shipped }}</span>
+      <span class="stat-lbl">Expédiées</span>
+    </div>
+    <div class="stat-card green" (click)="statusFilter = 'delivered'; applyFilters()">
+      <span class="stat-num">{{ stats.counts.delivered }}</span>
+      <span class="stat-lbl">Livrées</span>
+    </div>
+    <div class="stat-card red" (click)="statusFilter = 'cancelled'; applyFilters()">
+      <span class="stat-num">{{ stats.counts.cancelled }}</span>
+      <span class="stat-lbl">Annulées</span>
+    </div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="filters">
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <circle cx="7" cy="7" r="5" stroke="#aaa" stroke-width="1.5"/>
+        <path d="M11 11l3 3" stroke="#aaa" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <input
+        type="text"
+        placeholder="Rechercher par ID, client ou article..."
+        [(ngModel)]="search"
+        (input)="applyFilters()"
+      />
+    </div>
+    <select [(ngModel)]="statusFilter" (change)="applyFilters()">
+      <option *ngFor="let opt of STATUS_OPTIONS" [value]="opt.value">{{ opt.label }}</option>
+    </select>
+    <button *ngIf="statusFilter || search" class="btn-clear" (click)="statusFilter=''; search=''; applyFilters()">
+      Effacer les filtres
+    </button>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-wrap">
+    <div class="spinner"></div>
+    <p>Chargement des commandes...</p>
+  </div>
+
+  <!-- Tableau -->
+  <div *ngIf="!loading" class="table-wrap">
+
+    <div *ngIf="filtered.length === 0" class="empty">
+      <p>Aucune commande ne correspond aux filtres</p>
+    </div>
+
+    <table *ngIf="filtered.length > 0">
+      <thead>
+        <tr>
+          <th>N° Commande</th>
+          <th>Date</th>
+          <th>Articles</th>
+          <th>Total</th>
+          <th>Statut</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let order of filtered">
+          <tr [class.expanded]="selectedOrder?._id === order._id || selectedOrder?.id === order.id"
+              (click)="openDetail(order)">
+            <td>
+              <span class="order-id">{{ (order._id || order.id || '').slice(-8).toUpperCase() }}</span>
+            </td>
+            <td>{{ order.createdAt | date:'dd/MM/yyyy' }}</td>
+            <td>{{ order.items?.length || 0 }} article(s)</td>
+            <td><strong>{{ (order.total || 0).toFixed(2) }} DT</strong></td>
+            <td>
+              <span class="badge" [class]="'badge-' + getStatusColor(order.status)">
+                {{ getStatusLabel(order.status) }}
+              </span>
+            </td>
+            <td class="actions-cell" (click)="$event.stopPropagation()">
+              <button
+                *ngIf="canAdvance(order.status)"
+                class="btn-advance"
+                (click)="advanceStatus(order)"
+                [title]="'Passer à : ' + getNextStatusLabel(order.status)"
+              >
+                → {{ getNextStatusLabel(order.status) }}
+              </button>
+              <button
+                *ngIf="order.status !== 'cancelled' && order.status !== 'delivered'"
+                class="btn-cancel-sm"
+                (click)="changeStatus(order, 'cancelled')"
+                title="Annuler"
+              >
+                ✕
+              </button>
+            </td>
+          </tr>
+
+          <!-- Panneau détail inline -->
+          <tr *ngIf="selectedOrder?._id === order._id || selectedOrder?.id === order.id"
+              class="detail-row">
+            <td colspan="6">
+              <div class="inline-detail">
+                <div class="detail-grid">
+
+                  <!-- Articles -->
+                  <div *ngIf="order.items?.length">
+                    <h4>Articles</h4>
+                    <div *ngFor="let item of order.items" class="d-item">
+                      <span>{{ item.name }}</span>
+                      <span>× {{ item.quantity }}</span>
+                      <span>{{ (item.price * item.quantity).toFixed(2) }} DT</span>
+                    </div>
+                  </div>
+
+                  <!-- Adresse -->
+                  <div *ngIf="order.shippingAddress?.street">
+                    <h4>Livraison</h4>
+                    <p>{{ order.shippingAddress.street }}</p>
+                    <p>{{ order.shippingAddress.zipCode }} {{ order.shippingAddress.city }}</p>
+                    <p>{{ order.shippingAddress.country }}</p>
+                  </div>
+
+                  <!-- Paiement -->
+                  <div>
+                    <h4>Paiement</h4>
+                    <p>Méthode : {{ order.paymentMethod }}</p>
+                    <p>Statut :
+                      <span class="badge" [class]="'badge-' + (order.paymentStatus === 'paid' ? 'green' : 'red')">
+                        {{ order.paymentStatus }}
+                      </span>
+                    </p>
+                    <p *ngIf="order.stripePaymentIntentId">
+                      Stripe : <code>{{ order.stripePaymentIntentId }}</code>
+                    </p>
+                  </div>
+
+                  <!-- Changer statut -->
+                  <div class="status-changer">
+                    <h4>Changer le statut</h4>
+                    <div class="status-btns">
+                      <button
+                        *ngFor="let opt of STATUS_OPTIONS.slice(1)"
+                        [class.active]="order.status === opt.value"
+                        (click)="changeStatus(order, $any(opt.value))"
+                        [disabled]="order.status === opt.value"
+                      >
+                        {{ opt.label }}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </td>
+          </tr>
+
+        </ng-container>
+      </tbody>
+    </table>
+  </div>
+
+</div>
