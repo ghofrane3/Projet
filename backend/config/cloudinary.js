@@ -50,7 +50,9 @@ export const upload = multer({
     if (allowed.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Format non supporté. Utilisez JPG, PNG ou WebP'), false);
+      // ✅ CORRECTION : Ne pas passer de 2ème argument avec une Error
+      // La signature est : cb(error) ou cb(null, boolean)
+      cb(new Error('Format non supporté. Utilisez JPG, PNG ou WebP'));
     }
   },
 });

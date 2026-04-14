@@ -1,8 +1,12 @@
-import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router'; // ⭐ AJOUTER Router
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+
 import { CartService } from '../../../services/cart.service';
-import { AuthService } from '../../../services/auth.service'; // ⭐ AJOUTER
+import { AuthService } from '../../../services/auth.service';
+import { RecommendationService } from '../../../services/recommendation.service';
+
+import { RecommendationWidgetComponent } from '../../../shared/recommendation-widget/recommendation-widget.component';
 
 interface Product {
   _id: string;
@@ -28,9 +32,10 @@ interface Product {
 @Component({
   selector: 'app-product-detail',
   templateUrl: './product-detail.component.html',
-  styleUrls: ['./product-detail.component.scss']
+  styleUrls: ['./product-detail.component.scss'],
+  standalone: false, // On garde NgModule pour l'instant
 })
-export class ProductDetailComponent implements OnInit {
+export class ProductDetailComponent implements OnInit, OnDestroy {
   product: Product | null = null;
   loading = true;
   error = '';
@@ -45,12 +50,16 @@ export class ProductDetailComponent implements OnInit {
   addedToCart = false;
   addedToFavorites = false;
 
+  // Recommendation
+  private recoService = inject(RecommendationService);
+  private stopTracking!: () => void;
+
   constructor(
     private route: ActivatedRoute,
-    private router: Router, // ⭐ AJOUTER
+    private router: Router,
     private http: HttpClient,
     private cartService: CartService,
-    private authService: AuthService // ⭐ AJOUTER
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -72,15 +81,23 @@ export class ProductDetailComponent implements OnInit {
           if (response.success && response.product) {
             this.product = response.product;
 
-            // Sélectionner la première taille par défaut
+            // Sélection par défaut
             if (this.product?.sizes && this.product.sizes.length > 0) {
               this.selectedSize = this.product.sizes[0];
             }
-
-            // Sélectionner la première couleur par défaut
             if (this.product?.colors && this.product.colors.length > 0) {
               this.selectedColor = this.product.colors[0].name;
             }
+
+            // === TRACKING RECOMMENDATION ===
+            if (this.product && this.product._id) {
+  this.stopTracking = this.recoService.trackProductView(
+    this.product._id,        // ← Doit être un string ObjectId valide
+    this.product.category
+  );
+} else {
+  console.warn('[Reco] Impossible de tracker : product ou _id manquant');
+}
           }
           this.loading = false;
         },
@@ -91,6 +108,13 @@ export class ProductDetailComponent implements OnInit {
         }
       });
   }
+
+  ngOnDestroy(): void {
+    // Enregistre le dwell time quand l'utilisateur quitte la page
+    this.stopTracking?.();
+  }
+
+  // ====================== Méthodes existantes ======================
 
   selectImage(index: number): void {
     this.selectedImage = index;
@@ -116,37 +140,28 @@ export class ProductDetailComponent implements OnInit {
     }
   }
 
-  // ════════════════════════════════════════════════════════════
-  // ✅ MÉTHODE CORRIGÉE - AJOUTER AU PANIER
-  // ════════════════════════════════════════════════════════════
-
   addToCart(): void {
-    if (!this.product) {
-      return;
-    }
+    if (!this.product) return;
 
-    // ✅ Vérifier si l'utilisateur est connecté
     if (!this.authService.isAuthenticated()) {
       const login = confirm('Vous devez être connecté pour ajouter au panier. Se connecter maintenant ?');
       if (login) {
-        // Sauvegarder l'URL actuelle pour revenir après connexion
         localStorage.setItem('returnUrl', this.router.url);
         this.router.navigate(['/auth/login']);
       }
       return;
     }
 
-    // ✅ Vérifier la taille
     if (this.product.sizes && this.product.sizes.length > 0 && !this.selectedSize) {
+      alert('Veuillez sélectionner une taille');
       return;
     }
 
-    // ✅ Vérifier le stock
     if (this.product.stock < this.quantity) {
+      alert('Stock insuffisant');
       return;
     }
 
-    // ✅ AJOUTER .subscribe() pour que la requête HTTP se lance
     this.cartService.addToCart(
       this.product,
       this.quantity,
@@ -154,45 +169,27 @@ export class ProductDetailComponent implements OnInit {
       this.selectedColor
     ).subscribe({
       next: (response) => {
-        console.log('✅ Réponse du serveur:', response);
-
         if (response.success) {
-          // Animation de succès
           this.addedToCart = true;
-
-          // Message de confirmation
-
-          // Proposer d'aller au panier
-          const goToCart = confirm('Voir le panier ?');
+          const goToCart = confirm('Produit ajouté au panier. Voir le panier ?');
           if (goToCart) {
             this.router.navigate(['/cart']);
           }
-
-          // Réinitialiser après 2 secondes
-          setTimeout(() => {
-            this.addedToCart = false;
-          }, 2000);
-        } else {
+          setTimeout(() => this.addedToCart = false, 2000);
         }
       },
       error: (error) => {
-        console.error('❌ Erreur:', error);
-
+        console.error('Erreur ajout panier:', error);
         if (error.status === 401) {
           this.router.navigate(['/auth/login']);
-        } else if (error.status === 400) {
-        } else if (error.status === 500) {
-        } else {
         }
-
-        this.addedToCart = false;
       }
     });
   }
 
   toggleFavorite(): void {
     this.addedToFavorites = !this.addedToFavorites;
-    // TODO: Implémenter la logique de favoris avec le backend
+    // TODO: Implémenter avec backend
   }
 
   getMainImage(): string {
@@ -204,10 +201,7 @@ export class ProductDetailComponent implements OnInit {
 
   getDiscountPercent(): number {
     if (!this.product || !this.product.originalPrice) return 0;
-    if (this.product.originalPrice > this.product.price) {
-      return Math.round((1 - this.product.price / this.product.originalPrice) * 100);
-    }
-    return 0;
+    return Math.round((1 - this.product.price / this.product.originalPrice) * 100);
   }
 
   isOnSale(): boolean {

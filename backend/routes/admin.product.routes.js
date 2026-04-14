@@ -29,6 +29,57 @@ const safeParseArray = (value) => {
 };
 
 // ════════════════════════════════════════════════════════════
+// GET /api/admin/products — Liste tous les produits (admin)
+// ════════════════════════════════════════════════════════════
+router.get('/products', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, category, search, sort = '-createdAt' } = req.query;
+
+    const query = {};
+    if (category) query.category = category;
+    if (search)   query.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { description: { $regex: search, $options: 'i' } },
+      { sku: { $regex: search, $options: 'i' } },
+    ];
+
+    const [products, total] = await Promise.all([
+      Product.find(query)
+        .sort(sort)
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean(),
+      Product.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true, products, total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+    });
+  } catch (error) {
+    console.error('❌ Erreur liste produits:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// GET /api/admin/products/:id — Récupérer un produit par ID
+// ════════════════════════════════════════════════════════════
+router.get('/products/:id', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).lean();
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Produit non trouvé' });
+    }
+    res.json({ success: true, product });
+  } catch (error) {
+    console.error('❌ Erreur récupération produit:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
 // POST /api/admin/products — Créer un produit
 // ════════════════════════════════════════════════════════════
 router.post('/products', upload.array('images', 5), async (req, res) => {
@@ -54,22 +105,16 @@ router.post('/products', upload.array('images', 5), async (req, res) => {
       errors.push('Le stock est invalide');
 
     if (errors.length > 0) {
-      // ✅ Supprimer les images déjà uploadées sur Cloudinary si validation échoue
-      if (req.files?.length) {
-        await deleteImages(req.files.map(f => f.filename));
-      }
+      if (req.files?.length) await deleteImages(req.files.map(f => f.filename));
       return res.status(400).json({ success: false, errors });
     }
 
-    // ── Construire le tableau images depuis Cloudinary ──
-    // req.files contient : { path (url Cloudinary), filename (public_id), ... }
     const images = (req.files || []).map((file, index) => ({
-      url:      file.path,       // URL sécurisée Cloudinary (https://res.cloudinary.com/...)
-      publicId: file.filename,   // Public ID Cloudinary (pour suppression future)
+      url:      file.path,
+      publicId: file.filename,
       isMain:   index === 0,
     }));
 
-    // ── Créer le produit ────────────────────────────────
     const product = await Product.create({
       name:          name.trim(),
       description:   description.trim(),
@@ -94,11 +139,7 @@ router.post('/products', upload.array('images', 5), async (req, res) => {
     res.status(201).json({ success: true, message: 'Produit créé avec succès !', product });
 
   } catch (error) {
-    // Nettoyage Cloudinary si erreur après upload
-    if (req.files?.length) {
-      await deleteImages(req.files.map(f => f.filename));
-    }
-
+    if (req.files?.length) await deleteImages(req.files.map(f => f.filename));
     console.error('❌ Erreur création produit:', error.name, error.message);
 
     if (error.name === 'ValidationError') {
@@ -126,12 +167,8 @@ router.put('/products/:id', upload.array('images', 5), async (req, res) => {
 
     const updates = { ...req.body };
 
-    // ── Nouvelles images ────────────────────────────────
     if (req.files?.length > 0) {
-      // Supprimer les anciennes images de Cloudinary
-      const oldPublicIds = product.images
-        .map(img => img.publicId)
-        .filter(Boolean);
+      const oldPublicIds = product.images.map(img => img.publicId).filter(Boolean);
       if (oldPublicIds.length) await deleteImages(oldPublicIds);
 
       updates.images = req.files.map((file, index) => ({
@@ -141,14 +178,12 @@ router.put('/products/:id', upload.array('images', 5), async (req, res) => {
       }));
     }
 
-    // ── Parser les champs numériques / booléens ─────────
-    if (updates.price)            updates.price         = parseFloat(updates.price);
-    if (updates.stock !== undefined) updates.stock      = parseInt(updates.stock);
-    if (updates.originalPrice)    updates.originalPrice = parseFloat(updates.originalPrice);
+    if (updates.price)               updates.price         = parseFloat(updates.price);
+    if (updates.stock !== undefined)  updates.stock         = parseInt(updates.stock);
+    if (updates.originalPrice)        updates.originalPrice = parseFloat(updates.originalPrice);
     if (updates.featured !== undefined)
       updates.featured = updates.featured === 'true' || updates.featured === true;
 
-    // ── Parser les champs tableau ───────────────────────
     ['sizes', 'colors', 'tags'].forEach(field => {
       if (updates[field] && typeof updates[field] === 'string') {
         try   { updates[field] = JSON.parse(updates[field]); }
@@ -157,9 +192,7 @@ router.put('/products/:id', upload.array('images', 5), async (req, res) => {
     });
 
     const updated = await Product.findByIdAndUpdate(
-      req.params.id,
-      updates,
-      { new: true, runValidators: true }
+      req.params.id, updates, { new: true, runValidators: true }
     );
 
     console.log('✅ Produit mis à jour:', req.params.id);
@@ -168,7 +201,6 @@ router.put('/products/:id', upload.array('images', 5), async (req, res) => {
   } catch (error) {
     if (req.files?.length) await deleteImages(req.files.map(f => f.filename));
     console.error('❌ Erreur modification:', error.message);
-
     if (error.name === 'ValidationError') {
       return res.status(400).json({
         success: false,
@@ -187,7 +219,6 @@ router.delete('/products/:id', async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Produit non trouvé' });
 
-    // ✅ Supprimer toutes les images de Cloudinary
     const publicIds = product.images.map(img => img.publicId).filter(Boolean);
     if (publicIds.length) await deleteImages(publicIds);
 
@@ -197,37 +228,6 @@ router.delete('/products/:id', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Erreur suppression:', error.message);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// ════════════════════════════════════════════════════════════
-// GET /api/admin/products — Liste tous les produits (admin)
-// ════════════════════════════════════════════════════════════
-router.get('/products', async (req, res) => {
-  try {
-    const { page = 1, limit = 20, category, search, sort = '-createdAt' } = req.query;
-
-    const query = { isActive: true };
-    if (category) query.category = category;
-    if (search)   query.$text    = { $search: search };
-
-    const [products, total] = await Promise.all([
-      Product.find(query)
-        .sort(sort)
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
-        .lean(),
-      Product.countDocuments(query),
-    ]);
-
-    res.json({
-      success: true, products, total,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / parseInt(limit)),
-    });
-  } catch (error) {
-    console.error('❌ Erreur liste produits:', error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -252,13 +252,7 @@ router.get('/stats', async (req, res) => {
 
     res.json({
       success: true,
-      stats: {
-        totalProducts,
-        totalStock:    totalStock[0]?.total || 0,
-        outOfStock,
-        featuredCount,
-        categoryStats,
-      },
+      stats: { totalProducts, totalStock: totalStock[0]?.total || 0, outOfStock, featuredCount, categoryStats },
     });
   } catch (error) {
     console.error('❌ Erreur stats:', error.message);

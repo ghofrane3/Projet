@@ -22,6 +22,8 @@ import paymentRoutes      from './routes/payment.js';
 import cacheService           from './services/cache.service.js';
 import { patchCacheService }  from './config/cache.config.js';
 import evictionEmitter        from './services/eviction.emitter.js'; // NOUVEAU
+import recommendationRoutes from './routes/recommendation.routes.js';
+
 
 dotenv.config();
 
@@ -81,7 +83,7 @@ const corsOptions = {
   ],
   credentials:    true,
   methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-session-id'],
 };
 
 app.use(cors(corsOptions));
@@ -125,6 +127,7 @@ app.use('/api/admin',       adminProductRoutes);
 app.use('/api/admin/cache', adminCacheRoutes);
 app.use('/api/cart',        cartRoutes);
 app.use('/api/payment',     paymentRoutes);
+app.use('/api/recommendations', recommendationRoutes);
 
 // ════════════════════════════════════════════════════════════
 // 404 HANDLER

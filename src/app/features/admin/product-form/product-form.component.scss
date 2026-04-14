@@ -21,6 +21,29 @@ $shadow: 0 1px 3px rgba(0,0,0,0.1);
   min-height: 100vh;
 }
 
+// Loader page entière (mode édition)
+.page-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem;
+  color: $text-muted;
+
+  p { margin-top: 1rem; font-size: 0.95rem; }
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid $border;
+  border-top-color: $primary;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
 // Header
 .page-header {
   display: flex;
@@ -173,7 +196,6 @@ $shadow: 0 1px 3px rgba(0,0,0,0.1);
   @media (max-width: 600px) { grid-template-columns: 1fr; }
 }
 
-// Prix avec icône
 .input-with-icon {
   position: relative;
   .icon {
@@ -203,6 +225,11 @@ $shadow: 0 1px 3px rgba(0,0,0,0.1);
   .in-stock { color: $success; font-weight: 600; font-size: 0.875rem; }
   .low-stock { color: $warning; font-weight: 600; font-size: 0.875rem; }
   .out-stock { color: $danger; font-weight: 600; font-size: 0.875rem; }
+}
+
+// Images existantes (mode édition)
+.existing-images {
+  margin-bottom: 1rem;
 }
 
 // Upload Zone
@@ -241,7 +268,7 @@ $shadow: 0 1px 3px rgba(0,0,0,0.1);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.75rem;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
 
 .preview-item {

@@ -188,4 +188,12 @@
 
   </div>
 
+<!-- Widget de recommandations -->
+<app-recommendation-widget
+  *ngIf="product && product.category"
+  [category]="product.category"
+  [topK]="4"
+  [showDebug]="false">
+</app-recommendation-widget>
+
 </div>

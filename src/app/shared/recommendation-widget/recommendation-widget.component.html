@@ -1,0 +1,72 @@
+<!-- ============================================================ -->
+<!-- src/app/shared/recommendation-widget/recommendation-widget.component.html -->
+<!-- ============================================================ -->
+
+<div class="reco-widget" *ngIf="recommendations.length > 0">
+  <div class="reco-header">
+    <h3 class="reco-title">
+      <span class="reco-icon">✦</span>
+      Vous pourriez aussi aimer
+    </h3>
+    <span class="reco-badge" *ngIf="isPersonalized">
+      Personnalisé pour vous
+    </span>
+  </div>
+
+  <div class="reco-grid">
+    <div
+      class="reco-card"
+      *ngFor="let rec of recommendations; let i = index"
+      [style.animation-delay]="i * 80 + 'ms'"
+      (click)="navigateToCategory(rec.category)"
+    >
+      <!-- Image du produit représentatif -->
+      <div class="reco-card__image">
+        <ng-container *ngIf="getProductImage(rec.sampleProducts?.[0]) as imgUrl; else placeholder">
+          <img
+            [src]="imgUrl"
+            [alt]="rec.category"
+            loading="lazy"
+          />
+        </ng-container>
+        <ng-template #placeholder>
+          <div class="reco-card__image-placeholder">
+            {{ rec.category[0].toUpperCase() }}
+          </div>
+        </ng-template>
+
+        <div class="reco-card__score" *ngIf="showDebug">
+          {{ (rec.score * 100).toFixed(0) }}%
+        </div>
+      </div>
+
+      <div class="reco-card__body">
+        <p class="reco-card__category">{{ rec.category | titlecase }}</p>
+
+        <p class="reco-card__price" *ngIf="rec.sampleProducts?.[0]">
+          Dès {{ rec.sampleProducts[0].price | currency:'TND':'symbol':'1.0-0' }}
+        </p>
+
+        <div class="reco-card__indicators" *ngIf="showDebug">
+          <span class="indicator" title="Markov">M: {{ rec.breakdown.markov }}%</span>
+          <span class="indicator" title="Popularité">P: {{ rec.breakdown.popularity }}%</span>
+          <span class="indicator" title="Personnel">U: {{ rec.breakdown.personalization }}%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="reco-footer" *ngIf="recommendations.length >= 4">
+    <button class="reco-more-btn" (click)="loadMore()">
+      Découvrir plus →
+    </button>
+  </div>
+</div>
+
+<!-- Skeleton loader -->
+<div class="reco-skeleton" *ngIf="loading">
+  <div class="reco-skeleton__title"></div>
+  <div class="reco-skeleton__grid">
+    <div class="reco-skeleton__card" *ngFor="let _ of [1,2,3,4]"></div>
+  </div>
+</div>

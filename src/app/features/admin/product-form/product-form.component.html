@@ -1,243 +1,267 @@
 <div class="product-form-page">
-  <!-- Header -->
-  <div class="page-header">
-    <div class="header-left">
-      <button class="btn-back" routerLink="/admin/dashboard">← Retour</button>
-      <h1>➕ Ajouter un produit</h1>
-    </div>
-    <button class="btn-save" (click)="onSubmit()" [disabled]="loading">
-      <span *ngIf="!loading">💾 Enregistrer</span>
-      <span *ngIf="loading">⏳ Création...</span>
-    </button>
+
+  <!-- Loader pendant le chargement du produit en mode édition -->
+  <div *ngIf="pageLoading" class="page-loading">
+    <div class="spinner"></div>
+    <p>Chargement du produit...</p>
   </div>
 
-  <!-- Messages -->
-  <div *ngIf="success" class="alert-success">✅ {{ success }}</div>
-  <div *ngIf="errors.length > 0" class="alert-errors">
-    <p *ngFor="let err of errors">❌ {{ err }}</p>
-  </div>
+  <ng-container *ngIf="!pageLoading">
 
-  <div class="form-grid">
-
-    <!-- ════════════════════════════════════ -->
-    <!-- COLONNE GAUCHE                       -->
-    <!-- ════════════════════════════════════ -->
-    <div class="col-left">
-
-      <!-- Informations de base -->
-      <div class="card">
-        <h2>📋 Informations générales</h2>
-
-        <div class="form-group">
-          <label>Nom du produit *</label>
-          <input type="text" [(ngModel)]="product.name"
-                 placeholder="Ex: T-shirt Blanc Classique"
-                 maxlength="100" />
-          <small>{{ product.name.length }}/100</small>
-        </div>
-
-        <div class="form-group">
-          <label>Description *</label>
-          <textarea [(ngModel)]="product.description"
-                    placeholder="Décrivez le produit, ses matières, sa coupe..."
-                    rows="5" maxlength="2000"></textarea>
-          <small>{{ product.description.length }}/2000</small>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Marque</label>
-            <input type="text" [(ngModel)]="product.brand" placeholder="Ex: Fashion Store" />
-          </div>
-          <div class="form-group">
-            <label>Matière</label>
-            <input type="text" [(ngModel)]="product.material" placeholder="Ex: Coton 100%, Polyester..." />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>SKU (Code produit, optionnel)</label>
-          <input type="text" [(ngModel)]="product.sku" placeholder="Ex: TSH-BLANC-001" />
-        </div>
+    <!-- ══ Header ═════════════════════════════════════════════ -->
+    <div class="page-header">
+      <div class="header-left">
+        <button class="btn-back" routerLink="/admin/products">← Retour</button>
+        <h1>{{ isEditMode ? '✏️ Modifier le produit' : '➕ Ajouter un produit' }}</h1>
       </div>
+      <button class="btn-save" (click)="onSubmit()" [disabled]="loading">
+        <span *ngIf="!loading">💾 {{ isEditMode ? 'Enregistrer les modifications' : 'Créer le produit' }}</span>
+        <span *ngIf="loading">⏳ {{ isEditMode ? 'Modification...' : 'Création...' }}</span>
+      </button>
+    </div>
 
-      <!-- Prix et Stock -->
-      <div class="card">
-        <h2>💰 Prix et Stock</h2>
-        <div class="form-row">
+    <!-- ══ Messages ════════════════════════════════════════════ -->
+    <div *ngIf="success" class="alert-success">{{ success }}</div>
+    <div *ngIf="errors.length > 0" class="alert-errors">
+      <p *ngFor="let err of errors">❌ {{ err }}</p>
+    </div>
+
+    <div class="form-grid">
+
+      <!-- ════════════════════════════════════ -->
+      <!-- COLONNE GAUCHE                       -->
+      <!-- ════════════════════════════════════ -->
+      <div class="col-left">
+
+        <!-- Informations de base -->
+        <div class="card">
+          <h2>📋 Informations générales</h2>
+
           <div class="form-group">
-            <label>Prix de vente (DT) *</label>
-            <div class="input-with-icon">
-              <span class="icon">DT</span>
-              <input type="number" [(ngModel)]="product.price"
-                     placeholder="0.00" min="0" step="0.01" />
+            <label>Nom du produit *</label>
+            <input type="text" [(ngModel)]="product.name"
+                   placeholder="Ex: T-shirt Blanc Classique"
+                   maxlength="100" />
+            <small>{{ product.name.length }}/100</small>
+          </div>
+
+          <div class="form-group">
+            <label>Description *</label>
+            <textarea [(ngModel)]="product.description"
+                      placeholder="Décrivez le produit, ses matières, sa coupe..."
+                      rows="5" maxlength="2000"></textarea>
+            <small>{{ product.description.length }}/2000</small>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Marque</label>
+              <input type="text" [(ngModel)]="product.brand" placeholder="Ex: Fashion Store" />
+            </div>
+            <div class="form-group">
+              <label>Matière</label>
+              <input type="text" [(ngModel)]="product.material" placeholder="Ex: Coton 100%..." />
             </div>
           </div>
+
           <div class="form-group">
-            <label>Prix original (avant promo)</label>
-            <div class="input-with-icon">
-              <span class="icon">DT</span>
-              <input type="number" [(ngModel)]="product.originalPrice"
-                     placeholder="0.00" min="0" step="0.01" />
+            <label>SKU (Code produit, optionnel)</label>
+            <input type="text" [(ngModel)]="product.sku" placeholder="Ex: TSH-BLANC-001" />
+          </div>
+        </div>
+
+        <!-- Prix et Stock -->
+        <div class="card">
+          <h2>💰 Prix et Stock</h2>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Prix de vente (DT) *</label>
+              <div class="input-with-icon">
+                <span class="icon">DT</span>
+                <input type="number" [(ngModel)]="product.price"
+                       placeholder="0.00" min="0" step="0.01" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Prix original (avant promo)</label>
+              <div class="input-with-icon">
+                <span class="icon">DT</span>
+                <input type="number" [(ngModel)]="product.originalPrice"
+                       placeholder="0.00" min="0" step="0.01" />
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="product.originalPrice && product.price" class="promo-badge">
+            🏷️ Réduction : {{ ((1 - product.price! / product.originalPrice!) * 100).toFixed(0) }}%
+          </div>
+
+          <div class="form-group">
+            <label>Stock disponible *</label>
+            <input type="number" [(ngModel)]="product.stock" placeholder="0" min="0" />
+            <div class="stock-status" *ngIf="product.stock !== null">
+              <span [class]="product.stock > 10 ? 'in-stock' : product.stock > 0 ? 'low-stock' : 'out-stock'">
+                {{ product.stock > 10 ? '✅ En stock' : product.stock > 0 ? '⚠️ Stock faible' : '❌ Rupture de stock' }}
+              </span>
             </div>
           </div>
         </div>
 
-        <div *ngIf="product.originalPrice && product.price" class="promo-badge">
-          🏷️ Réduction : {{ ((1 - product.price / product.originalPrice) * 100).toFixed(0) }}%
-        </div>
-
-        <div class="form-group">
-          <label>Stock disponible *</label>
-          <input type="number" [(ngModel)]="product.stock"
-                 placeholder="0" min="0" />
-          <div class="stock-status" *ngIf="product.stock !== null">
-            <span [class]="product.stock > 10 ? 'in-stock' : product.stock > 0 ? 'low-stock' : 'out-stock'">
-              {{ product.stock > 10 ? '✅ En stock' : product.stock > 0 ? '⚠️ Stock faible' : '❌ Rupture de stock' }}
+        <!-- Tags -->
+        <div class="card">
+          <h2>🏷️ Tags</h2>
+          <div class="tag-input">
+            <input type="text" [(ngModel)]="newTag"
+                   placeholder="Ex: été, casual, sport..."
+                   (keydown)="onTagKeydown($event)" />
+            <button type="button" (click)="addTag()">Ajouter</button>
+          </div>
+          <div class="tags-list">
+            <span class="tag" *ngFor="let tag of tags; let i = index">
+              {{ tag }} <button (click)="removeTag(i)">×</button>
             </span>
           </div>
+          <small>Appuyez sur Entrée ou virgule pour ajouter</small>
         </div>
+
       </div>
 
-      <!-- Tags -->
-      <div class="card">
-        <h2>🏷️ Tags</h2>
-        <div class="tag-input">
-          <input type="text" [(ngModel)]="newTag"
-                 placeholder="Ex: été, casual, sport..."
-                 (keydown)="onTagKeydown($event)" />
-          <button type="button" (click)="addTag()">Ajouter</button>
-        </div>
-        <div class="tags-list">
-          <span class="tag" *ngFor="let tag of tags; let i = index">
-            {{ tag }} <button (click)="removeTag(i)">×</button>
-          </span>
-        </div>
-        <small>Appuyez sur Entrée ou virgule pour ajouter</small>
-      </div>
+      <!-- ════════════════════════════════════ -->
+      <!-- COLONNE DROITE                       -->
+      <!-- ════════════════════════════════════ -->
+      <div class="col-right">
 
-    </div>
+        <!-- Images -->
+        <div class="card">
+          <h2>🖼️ Images du produit</h2>
+          <p class="hint">Max 5 images • JPG, PNG, WebP • 5 MB max • La 1ère = image principale</p>
 
-    <!-- ════════════════════════════════════ -->
-    <!-- COLONNE DROITE                       -->
-    <!-- ════════════════════════════════════ -->
-    <div class="col-right">
-
-      <!-- Images -->
-      <div class="card">
-        <h2>🖼️ Images du produit *</h2>
-        <p class="hint">Max 5 images • JPG, PNG, WebP • 5MB max • La 1ère = image principale</p>
-
-        <!-- Zone de drag & drop -->
-        <div class="upload-zone"
-             [class.drag-over]="dragOver"
-             (dragover)="onDragOver($event)"
-             (dragleave)="onDragLeave()"
-             (drop)="onDrop($event)"
-             (click)="fileInput.click()">
-          <div class="upload-icon">📸</div>
-          <p>Glissez vos images ici ou <strong>cliquez pour parcourir</strong></p>
-          <small>JPG, PNG, WebP — Max 5 images — 5MB par image</small>
-          <input #fileInput type="file" multiple accept="image/*"
-                 (change)="onFileSelect($event)" style="display:none" />
-        </div>
-
-        <!-- Prévisualisation -->
-        <div class="image-previews" *ngIf="previewUrls.length > 0">
-          <div class="preview-item" *ngFor="let url of previewUrls; let i = index">
-            <img [src]="url" [alt]="'Image ' + (i+1)" />
-            <div class="preview-overlay">
-              <button class="btn-main" (click)="setMainImage(i)" title="Définir comme principale">
-                {{ i === 0 ? '⭐ Principale' : '☆ Principale' }}
-              </button>
-              <button class="btn-remove" (click)="removeImage(i)">🗑️</button>
+          <!-- Images existantes (mode édition) -->
+          <div *ngIf="existingImages.length > 0" class="existing-images">
+            <p class="hint">Images actuelles ({{ existingImages.length }}) :</p>
+            <div class="image-previews">
+              <div class="preview-item" *ngFor="let img of existingImages; let i = index">
+                <img [src]="img.url" alt="Image existante {{ i+1 }}" />
+                <div class="preview-overlay">
+                  <button class="btn-remove" (click)="removeExistingImage(i)">🗑️ Supprimer</button>
+                </div>
+                <span *ngIf="img.isMain" class="main-badge">PRINCIPALE</span>
+              </div>
             </div>
-            <span *ngIf="i === 0" class="main-badge">PRINCIPALE</span>
+          </div>
+
+          <!-- Zone de drag & drop pour nouvelles images -->
+          <div class="upload-zone"
+               [class.drag-over]="dragOver"
+               (dragover)="onDragOver($event)"
+               (dragleave)="onDragLeave()"
+               (drop)="onDrop($event)"
+               (click)="fileInput.click()">
+            <div class="upload-icon">📸</div>
+            <p>{{ isEditMode ? 'Ajouter de nouvelles images' : 'Glissez vos images ici' }} ou <strong>cliquez pour parcourir</strong></p>
+            <small>JPG, PNG, WebP — Max 5 images — 5 MB par image</small>
+            <input #fileInput type="file" multiple accept="image/*"
+                   (change)="onFileSelect($event)" style="display:none" />
+          </div>
+
+          <!-- Prévisualisation nouvelles images -->
+          <div class="image-previews" *ngIf="previewUrls.length > 0">
+            <p class="hint" style="margin-top:1rem">Nouvelles images à ajouter :</p>
+            <div class="preview-item" *ngFor="let url of previewUrls; let i = index">
+              <img [src]="url" [alt]="'Nouvelle image ' + (i+1)" />
+              <div class="preview-overlay">
+                <button class="btn-main" (click)="setMainNewImage(i)">
+                  {{ i === 0 ? '⭐ Principale' : '☆ Principale' }}
+                </button>
+                <button class="btn-remove" (click)="removeNewImage(i)">🗑️</button>
+              </div>
+              <span *ngIf="i === 0 && existingImages.length === 0" class="main-badge">PRINCIPALE</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Catégorie et Genre -->
-      <div class="card">
-        <h2>📂 Catégorie</h2>
+        <!-- Catégorie et Genre -->
+        <div class="card">
+          <h2>📂 Catégorie</h2>
 
-        <div class="form-group">
-          <label>Catégorie *</label>
-          <select [(ngModel)]="product.category" (ngModelChange)="onCategoryChange()">
-            <option value="">-- Sélectionnez une catégorie --</option>
-            <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
-          </select>
+          <div class="form-group">
+            <label>Catégorie *</label>
+            <select [(ngModel)]="product.category" (ngModelChange)="onCategoryChange()">
+              <option value="">-- Sélectionnez une catégorie --</option>
+              <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Genre *</label>
+            <div class="gender-buttons">
+              <button *ngFor="let g of genders" type="button"
+                      [class.active]="product.gender === g"
+                      (click)="product.gender = g">
+                {{ g }}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>Genre *</label>
-          <div class="gender-buttons">
-            <button *ngFor="let g of genders" type="button"
-                    [class.active]="product.gender === g"
-                    (click)="product.gender = g">
-              {{ g }}
+        <!-- Tailles -->
+        <div class="card" *ngIf="product.category && getSizesForCategory().length > 0">
+          <h2>📏 Tailles disponibles</h2>
+          <div class="sizes-grid">
+            <button *ngFor="let size of getSizesForCategory()" type="button"
+                    [class.selected]="isSizeSelected(size)"
+                    (click)="toggleSize(size)"
+                    class="size-btn">
+              {{ size }}
             </button>
           </div>
-        </div>
-      </div>
-
-      <!-- Tailles -->
-      <div class="card" *ngIf="product.category && getSizesForCategory().length > 0">
-        <h2>📏 Tailles disponibles</h2>
-        <div class="sizes-grid">
-          <button *ngFor="let size of getSizesForCategory()" type="button"
-                  [class.selected]="isSizeSelected(size)"
-                  (click)="toggleSize(size)"
-                  class="size-btn">
-            {{ size }}
-          </button>
-        </div>
-        <small>{{ selectedSizes.length }} taille(s) sélectionnée(s)</small>
-      </div>
-
-      <!-- Couleurs -->
-      <div class="card">
-        <h2>🎨 Couleurs disponibles</h2>
-
-        <div class="color-input">
-          <input type="text" [(ngModel)]="newColor.name" placeholder="Ex: Rouge cerise" />
-          <input type="color" [(ngModel)]="newColor.hex" title="Choisir la couleur" />
-          <button type="button" (click)="addColor()">Ajouter</button>
+          <small>{{ selectedSizes.length }} taille(s) sélectionnée(s)</small>
         </div>
 
-        <div class="colors-list">
-          <div class="color-item" *ngFor="let color of colors; let i = index">
-            <span class="color-swatch" [style.backgroundColor]="color.hex"></span>
-            <span class="color-name">{{ color.name }}</span>
-            <button (click)="removeColor(i)">×</button>
+        <!-- Couleurs -->
+        <div class="card">
+          <h2>🎨 Couleurs disponibles</h2>
+          <div class="color-input">
+            <input type="text" [(ngModel)]="newColor.name" placeholder="Ex: Rouge cerise" />
+            <input type="color" [(ngModel)]="newColor.hex" title="Choisir la couleur" />
+            <button type="button" (click)="addColor()">Ajouter</button>
+          </div>
+          <div class="colors-list">
+            <div class="color-item" *ngFor="let color of colors; let i = index">
+              <span class="color-swatch" [style.backgroundColor]="color.hex"></span>
+              <span class="color-name">{{ color.name }}</span>
+              <button (click)="removeColor(i)">×</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Visibilité -->
-      <div class="card">
-        <h2>👁️ Visibilité</h2>
-        <label class="toggle-label">
-          <div class="toggle" [class.active]="product.featured" (click)="product.featured = !product.featured">
-            <div class="toggle-dot"></div>
-          </div>
-          <div>
-            <strong>Produit en vedette</strong>
-            <p>Afficher sur la page d'accueil</p>
-          </div>
-        </label>
-      </div>
+        <!-- Visibilité -->
+        <div class="card">
+          <h2>👁️ Visibilité</h2>
+          <label class="toggle-label">
+            <div class="toggle" [class.active]="product.featured" (click)="product.featured = !product.featured">
+              <div class="toggle-dot"></div>
+            </div>
+            <div>
+              <strong>Produit en vedette</strong>
+              <p>Afficher sur la page d'accueil</p>
+            </div>
+          </label>
+        </div>
 
+      </div>
     </div>
-  </div>
 
-  <!-- Bouton de sauvegarde bas de page -->
-  <div class="form-footer">
-    <button class="btn-cancel" routerLink="/admin/products">Annuler</button>
-    <button class="btn-save-bottom" (click)="onSubmit()" [disabled]="loading">
-      <span *ngIf="!loading">💾 Créer le produit</span>
-      <span *ngIf="loading">⏳ Création en cours...</span>
-    </button>
-  </div>
+    <!-- ══ Footer ══════════════════════════════════════════════ -->
+    <div class="form-footer">
+      <button class="btn-cancel" routerLink="/admin/products">Annuler</button>
+      <button class="btn-save-bottom" (click)="onSubmit()" [disabled]="loading">
+        <span *ngIf="!loading">
+          💾 {{ isEditMode ? 'Enregistrer les modifications' : 'Créer le produit' }}
+        </span>
+        <span *ngIf="loading">⏳ {{ isEditMode ? 'Modification en cours...' : 'Création en cours...' }}</span>
+      </button>
+    </div>
 
+  </ng-container>
 </div>

@@ -9,7 +9,7 @@ import { UsersManagementComponent } from './users-management/users-management.co
 import { CacheDashboardComponent } from './cache-dashboard/cache-dashboard.component';
 import { ProductFormComponent } from './product-form/product-form.component';
 import { AdminLayoutComponent } from './admin-layout/admin-layout.component';
-
+import { AdminProductListComponent } from './product-list/admin-product-list.component'; // ✅ NOUVEAU
 
 @NgModule({
   declarations: [
@@ -17,15 +17,15 @@ import { AdminLayoutComponent } from './admin-layout/admin-layout.component';
     UsersManagementComponent,
     CacheDashboardComponent,
     ProductFormComponent,
-    AdminLayoutComponent
+    AdminLayoutComponent,
+    AdminProductListComponent, // ✅ NOUVEAU
   ],
   imports: [
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
     RouterModule,
-    AdminRoutingModule
-
+    AdminRoutingModule,
   ]
 })
 export class AdminModule { }

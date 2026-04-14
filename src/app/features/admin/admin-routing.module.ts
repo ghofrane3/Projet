@@ -6,6 +6,7 @@ import { DashboardComponent } from './dashboard/dashboard.component';
 import { UsersManagementComponent } from './users-management/users-management.component';
 import { CacheDashboardComponent } from './cache-dashboard/cache-dashboard.component';
 import { ProductFormComponent } from './product-form/product-form.component';
+import { AdminProductListComponent } from './product-list/admin-product-list.component'; // ✅ NOUVEAU
 
 const routes: Routes = [
   {
@@ -32,24 +33,25 @@ const routes: Routes = [
         component: CacheDashboardComponent,
         title: 'Admin - Gestion Cache'
       },
+      // ✅ Liste des produits (admin dédié)
+      {
+        path: 'products',
+        component: AdminProductListComponent,
+        title: 'Admin - Liste Produits'
+      },
+      // ✅ Création d'un nouveau produit
       {
         path: 'products/new',
         component: ProductFormComponent,
         title: 'Admin - Nouveau Produit'
       },
+      // ✅ Modification d'un produit existant
       {
         path: 'products/edit/:id',
         component: ProductFormComponent,
         title: 'Admin - Modifier Produit'
       },
-      // ✅ AJOUTER CETTE ROUTE
-      {
-        path: 'products',
-        loadComponent: () => import('../../features/products/product-list/product-list.component')
-          .then(m => m.ProductListComponent),
-        title: 'Admin - Liste Produits'
-      },
-      // ✅ AJOUTER CETTE ROUTE
+      // ✅ Commandes
       {
         path: 'orders',
         loadComponent: () => import('../../features/admin/orders/orders.component')

@@ -16,7 +16,7 @@ import {
 const router = express.Router();
 
 // ════════════════════════════════════════════════════════════
-// HELPER INVALIDATION (conserve l'ancien comportement)
+// HELPER INVALIDATION
 // ════════════════════════════════════════════════════════════
 const invalidateCache = async (...patterns) => {
   await invalidateCachePattern(...patterns);
@@ -24,7 +24,8 @@ const invalidateCache = async (...patterns) => {
 
 // ════════════════════════════════════════════════════════════
 // GET /api/products — Liste + recherche + filtres
-// Utilise searchCacheMiddleware → TTL dynamique + normalisation
+// FIX : category utilise $regex insensible à la casse
+//       pour éviter "shorts" ≠ "Shorts" → boutique vide
 // ════════════════════════════════════════════════════════════
 router.get('/',
   searchCacheMiddleware(),
@@ -39,7 +40,13 @@ router.get('/',
       const query = {};
 
       if (gender)   query.gender   = gender;
-      if (category) query.category = category;
+
+      // ✅ FIX : Comparaison insensible à la casse pour category
+      // Avant : query.category = category  → "shorts" ≠ "Shorts" → 0 résultats
+      // Après : regex ^shorts$ (i)          → matche "Shorts", "SHORTS", "shorts"
+      if (category) {
+        query.category = { $regex: new RegExp(`^${category.trim()}$`, 'i') };
+      }
 
       if (search && search.trim()) {
         const term = search.trim();
@@ -75,7 +82,6 @@ router.get('/',
           total,
           pages: Math.ceil(total / Number(limit))
         },
-        // Indiquer si c'est une recherche (utile pour le frontend)
         ...(search ? { searchTerm: search.trim(), resultCount: total } : {})
       });
 
@@ -88,7 +94,6 @@ router.get('/',
 
 // ════════════════════════════════════════════════════════════
 // GET /api/products/featured
-// TTL fixe 7200s — cacheMiddleware standard
 // ════════════════════════════════════════════════════════════
 router.get('/featured',
   cacheMiddleware('featured', (req) => ({ path: req.path })),
@@ -133,11 +138,8 @@ router.get('/categories',
 );
 
 // ════════════════════════════════════════════════════════════
-// NOUVELLES ROUTES RECHERCHE
-// ════════════════════════════════════════════════════════════
-
 // GET /api/products/search/suggestions — Autocomplete
-// Cache 2 min — résultats très dynamiques
+// ════════════════════════════════════════════════════════════
 router.get('/search/suggestions',
   suggestionsCacheMiddleware(),
   async (req, res) => {
@@ -184,8 +186,9 @@ router.get('/search/suggestions',
   }
 );
 
+// ════════════════════════════════════════════════════════════
 // GET /api/products/search/popular — Recherches populaires
-// Cache 1h — données stables
+// ════════════════════════════════════════════════════════════
 router.get('/search/popular',
   cacheMiddleware('search-popular', (req) => ({ path: req.path })),
   async (req, res) => {
@@ -219,7 +222,7 @@ router.get('/search/popular',
 
 // ════════════════════════════════════════════════════════════
 // GET /api/products/:id — Détail produit
-// DOIT RESTER EN DERNIER (sinon capte /search/suggestions etc.)
+// DOIT RESTER EN DERNIER
 // ════════════════════════════════════════════════════════════
 router.get('/:id',
   cacheMiddleware('product-detail', (req) => ({ path: req.path, id: req.params.id })),
@@ -240,7 +243,6 @@ router.get('/:id',
 // MUTATIONS — Invalider le cache après modification
 // ════════════════════════════════════════════════════════════
 
-// POST /api/products
 router.post('/', async (req, res) => {
   try {
     const product = new Product(req.body);
@@ -254,7 +256,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/products/:id
 router.put('/:id', async (req, res) => {
   try {
     const product = await Product.findByIdAndUpdate(
@@ -272,7 +273,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/products/:id
 router.delete('/:id', async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
