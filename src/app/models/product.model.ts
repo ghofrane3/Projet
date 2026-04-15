@@ -1,41 +1,34 @@
+export interface ImageObject {
+  url: string;
+  isMain?: boolean;
+}
+
 export interface Product {
-  id: number;
+  _id: string;                    // Important : MongoDB renvoie _id
+  id?: number;                    // Compatibilité ancienne
+
   name: string;
   description: string;
-  price: number; // En dinar
-  discountPrice?: number;
-  images: string[];
+  price: number;
+  originalPrice?: number;
+
+  featured?: boolean;
+  salesCount?: number;
+
+  images: string[] | ImageObject[];   // Accepte les deux formats
+
   category: string;
   subcategory: 'homme' | 'femme' | 'enfant' | 'accessoire';
   sizes: string[];
   colors: string[];
-  inStock: boolean;
-  rating: number;
-  reviews: number;
+  inStock: boolean;               // ← Utilisé dans addToCart
+
+  rating?: {
+    average: number;
+    count: number;
+  };
+
+  reviews?: number;
   tags: string[];
   createdAt: Date;
-}
-
-export interface CartItem {
-  product: Product;
-  quantity: number;
-  selectedSize: string;
-  selectedColor: string;
-}
-
-export interface Category {
-  id: number;
-  name: string;
-  icon: string;
-  count: number;
-  color: string;
-  gradient: string;
-}
-
-export interface Order {
-  id: string;
-  items: CartItem[];
-  total: number;
-  date: Date;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered';
 }

@@ -319,7 +319,9 @@ export const CACHE_CONFIG = {
     'product-delete':  ['product-list', 'product-detail', 'product-search', 'product-featured'],
     'order-create':    ['user-orders', 'admin-stats'],
     'order-update':    ['user-orders', 'admin-stats'],
-    'user-update':     ['user-profile'],
+    'user_registered': ['admin:users'],
+    'user_updated':    ['user:', 'admin:users'],
+    'user_deleted':    ['user:', 'admin:users'],
     'category-update': ['categories', 'category-detail', 'product-list'],
   },
 

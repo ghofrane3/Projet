@@ -7,17 +7,35 @@
  *  2. Émet en temps réel vers le namespace Socket.IO /cache-admin.
  *
  * Événements émis (côté client Angular) :
- *   eviction:key     → { key, reason, level, ttl, timestamp }
- *   eviction:batch   → { keys[], reason, count, timestamp }
+ *   eviction:key     → { key, reason, label, level, ttl, context, timestamp }
+ *   eviction:batch   → { keys[], pattern?, reason, label, count, context, timestamp }
  *   metrics:snapshot → métriques complètes
- *   cache:cleared    → { message, count, timestamp }
+ *   cache:cleared    → { message, count, reason, label, context, timestamp }
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-// ✅ FIX ÉTAPE 1 : importer directement getRedisClientSafe depuis la config Redis
-// car cacheService n'expose pas de propriété redisClient publique —
-// il appelle getRedisClientSafe() en interne à chaque opération.
 import { getRedisClientSafe } from '../config/redis.js';
+
+// ── Labels lisibles pour l'UI ─────────────────────────────────────────────────
+export const REASON_LABELS = {
+  manual_delete:   '🗑️ Suppression manuelle',
+  ttl_expired:     '⏱️ TTL expiré',
+  pattern_delete:  '🔍 Suppression par pattern',
+  batch_eviction:  '📦 Éviction batch',
+  full_flush:      '🧹 Vidage total',
+  warmup:          '🔥 Préchauffage',
+  reset:           '🔄 Reset métriques',
+  eviction:        '⚡ Éviction automatique',
+  // contextes métier
+  product_created: '👔 Nouveau produit',
+  product_updated: '✏️ Produit modifié',
+  product_deleted: '🗑️ Produit supprimé',
+  order_created:   '🛍️ Nouvelle commande',
+  order_updated:   '🛒 Commande mise à jour',
+  user_registered: '👋 Nouvel utilisateur',
+  user_updated:    '👤 Utilisateur modifié',
+  user_deleted:    '❌ Utilisateur supprimé',
+};
 
 class EvictionEmitter {
   constructor() {
@@ -31,58 +49,21 @@ class EvictionEmitter {
   // ── Injecter le namespace Socket.IO ──────────────────────────────────────
   setIO(namespace) {
     this._io = namespace;
+    console.log('✅ [EvictionEmitter] Namespace Socket.IO /cache-admin enregistré');
   }
 
-  // ── Attacher sur cacheService (appelé APRÈS patchCacheService) ───────────
+  // ── Attacher sur cacheService (appelé APRÈS initialisation du singleton) ─
   attach(cacheService) {
     if (!cacheService) return;
     this._service = cacheService;
 
-    // ── Intercepter delete() ─────────────────────────────────────────────
-    const originalDelete = cacheService.delete?.bind(cacheService)
-                        || cacheService.del?.bind(cacheService);
+    // ── Intercepter invalidateKey() si elle n'appelle pas déjà emit ────────
+    // Note : invalidateKey() dans cache.service.js appelle déjà evictionEmitter.emit()
+    // Le monkey-patch ci-dessous sert de filet de sécurité pour les méthodes
+    // qui ne le feraient pas.
 
-    if (originalDelete) {
-      const methodName = cacheService.delete ? 'delete' : 'del';
-      cacheService[methodName] = async (key, ...args) => {
-        const result = await originalDelete(key, ...args);
-        this._emitSingle({ key, reason: 'manual_delete', level: 'L1+L2' });
-        return result;
-      };
-    }
-
-    // ── Intercepter invalidatePattern() / deleteByPattern() ──────────────
-    const originalPattern = (
-      cacheService.invalidatePattern
-      || cacheService.deleteByPattern
-      || cacheService.clearByPattern
-    );
-
-    if (originalPattern) {
-      const name = ['invalidatePattern', 'deleteByPattern', 'clearByPattern']
-        .find(n => typeof cacheService[n] === 'function');
-      const bound = originalPattern.bind(cacheService);
-
-      cacheService[name] = async (pattern, ...args) => {
-        const result = await bound(pattern, ...args);
-        const count  = typeof result === 'number' ? result : (result?.deleted ?? 0);
-        this._emitBatch({ pattern, count, reason: 'pattern_delete' });
-        return result;
-      };
-    }
-
-    // ── Intercepter flush() / clear() / flushAll() ────────────────────────
-    const flushName = ['flush', 'clear', 'flushAll', 'clearAll']
-      .find(n => typeof cacheService[n] === 'function');
-
-    if (flushName) {
-      const boundFlush = cacheService[flushName].bind(cacheService);
-      cacheService[flushName] = async (...args) => {
-        const result = await boundFlush(...args);
-        this._emitCleared();
-        return result;
-      };
-    }
+    // ── Intercepter flush() ───────────────────────────────────────────────
+    // Note : flush() appelle déjà _emitCleared() — pas de double-wrap ici.
 
     // ── Écoute des keyspace notifications Redis (expiration automatique) ──
     this._subscribeRedisExpiry();
@@ -90,36 +71,77 @@ class EvictionEmitter {
     console.log('✅ [EvictionEmitter] Attaché sur cacheService');
   }
 
-  // ── Émettre une éviction unitaire ─────────────────────────────────────────
-  _emitSingle({ key, reason = 'eviction', level = 'L1', ttl = null }) {
-    const event = {
+  // ── Émettre une éviction unitaire (API publique) ──────────────────────────
+  // meta peut contenir { context, ttl }
+  emit(key, reason = 'manual_delete', level = 'L1+L2', meta = {}) {
+    this._emitSingle({
       key,
       reason,
       level,
+      ttl:     meta.ttl     ?? null,
+      context: meta.context ?? '',
+    });
+  }
+
+  // ── Émettre un batch (API publique) ──────────────────────────────────────
+  // meta peut contenir { context, pattern }
+  emitBatch(keys = [], reason = 'batch_delete', meta = {}) {
+    if (!this._io) return;
+    this._io.emit('eviction:batch', {
+      keys,
+      count:     keys.length,
+      reason,
+      label:     REASON_LABELS[reason] ?? reason,
+      pattern:   meta.pattern ?? '',
+      context:   meta.context ?? '',
+      timestamp: new Date().toISOString(),
+    });
+    this._emitMetricsSnapshot();
+  }
+
+  // ── Forcer un snapshot métriques (API publique) ───────────────────────────
+  emitMetrics() {
+    this._emitMetricsSnapshot();
+  }
+
+  // ── Émettre une éviction unitaire (interne) ───────────────────────────────
+  _emitSingle({ key, reason = 'eviction', level = 'L1', ttl = null, context = '' }) {
+    const event = {
+      key,
+      reason,
+      label:     REASON_LABELS[reason] ?? reason,
+      level,
       ttl,
+      context,
       timestamp: new Date().toISOString(),
     };
     this._buffer.push(event);
     this._scheduleBatch();
   }
 
-  // ── Émettre une éviction de pattern ───────────────────────────────────────
-  _emitBatch({ pattern, count, reason = 'pattern_delete' }) {
+  // ── Émettre une éviction de pattern (interne) ─────────────────────────────
+  _emitBatch({ pattern = '', count = 0, reason = 'pattern_delete', context = '' }) {
     if (!this._io) return;
     this._io.emit('eviction:batch', {
       pattern,
       count,
       reason,
+      label:     REASON_LABELS[reason] ?? reason,
+      context,
       timestamp: new Date().toISOString(),
     });
     this._emitMetricsSnapshot();
   }
 
-  // ── Émettre un flush total ─────────────────────────────────────────────────
-  _emitCleared() {
+  // ── Émettre un flush total (interne) ──────────────────────────────────────
+  _emitCleared({ count = 0, reason = 'full_flush', context = '' } = {}) {
     if (!this._io) return;
     this._io.emit('cache:cleared', {
-      message:   'Cache entièrement vidé',
+      message:   `Cache entièrement vidé (${count} entrée${count > 1 ? 's' : ''})`,
+      count,
+      reason,
+      label:     REASON_LABELS[reason] ?? reason,
+      context,
       timestamp: new Date().toISOString(),
     });
     this._emitMetricsSnapshot();
@@ -147,6 +169,9 @@ class EvictionEmitter {
         keys:      this._buffer.map(e => e.key),
         count:     this._buffer.length,
         reason:    'batch_eviction',
+        label:     REASON_LABELS['batch_eviction'],
+        // Regrouper les contextes uniques du buffer
+        context:   [...new Set(this._buffer.map(e => e.context).filter(Boolean))].join(', '),
         timestamp: new Date().toISOString(),
       });
     }
@@ -165,11 +190,8 @@ class EvictionEmitter {
   }
 
   // ── Écoute des keyspace notifications Redis (expiration automatique) ───────
-  // ✅ FIX ÉTAPE 1 : utiliser getRedisClientSafe() au lieu de this._service?.redisClient
-  // car CacheService n'expose pas de propriété publique vers le client Redis.
   _subscribeRedisExpiry() {
     try {
-      // ✅ Récupérer le client Redis via la fonction utilitaire partagée
       const redisClient = getRedisClientSafe();
 
       if (!redisClient) {
@@ -177,8 +199,6 @@ class EvictionEmitter {
         return;
       }
 
-      // ✅ Dupliquer la connexion pour le mode subscriber
-      // (un client Redis en mode subscribe ne peut pas faire d'autres commandes)
       const subscriber = redisClient.duplicate
         ? redisClient.duplicate()
         : null;
@@ -200,9 +220,10 @@ class EvictionEmitter {
           // S'abonner aux expirations sur toutes les DB
           await subscriber.pSubscribe('__keyevent@*__:expired', (expiredKey) => {
             this._emitSingle({
-              key:    expiredKey,
-              reason: 'ttl_expired',
-              level:  'L2 (Redis)',
+              key:     expiredKey,
+              reason:  'ttl_expired',
+              level:   'L2 (Redis)',
+              context: 'auto-expiry',
             });
           });
 
@@ -215,26 +236,6 @@ class EvictionEmitter {
     } catch (err) {
       console.warn('⚠️  [EvictionEmitter] Redis keyspace setup error:', err.message);
     }
-  }
-
-  // ── API publique : émettre manuellement ───────────────────────────────────
-  emit(key, reason = 'manual_delete', level = 'L1+L2') {
-    this._emitSingle({ key, reason, level });
-  }
-
-  emitBatch(keys = [], reason = 'batch_delete') {
-    if (!this._io) return;
-    this._io.emit('eviction:batch', {
-      keys,
-      count:     keys.length,
-      reason,
-      timestamp: new Date().toISOString(),
-    });
-    this._emitMetricsSnapshot();
-  }
-
-  emitMetrics() {
-    this._emitMetricsSnapshot();
   }
 }
 

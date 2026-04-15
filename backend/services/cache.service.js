@@ -1,5 +1,6 @@
 import { getRedisClientSafe } from '../config/redis.js';
 import { CACHE_CONFIG, generateCacheKey, calculateDynamicTTL } from '../config/cache.config.js';
+import evictionEmitter from './eviction.emitter.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // SERVICE CACHE MULTINIVEAU  L1(mémoire) → L2(Redis) → L3(MongoDB)
@@ -44,9 +45,6 @@ class CacheService {
   // GET par clé brute (recherche / suggestions)
   //
   // FIX : defaultTTL accepté en paramètre (était hardcodé à 300s).
-  // Sans ce fix, lors d'un L2 HIT avec redis.ttl() en échec silencieux,
-  // L1 recevait TTL=300s même pour des entrées à 1800s/3600s
-  // → L1 expirait trop vite → requêtes L2 en cascade → hit rate L2 proche de 0.
   // ══════════════════════════════════════════════════════════════════════════
   async getByKey(key, defaultTTL = 300) {
     return this._getFromLevels(key, defaultTTL);
@@ -111,8 +109,6 @@ class CacheService {
           this.metrics.l2ResponseTimeCount++;
 
           // FIX : utiliser le TTL Redis réel pour la remontée en L1.
-          // Si redis.ttl() échoue, defaultTTL reflète le vrai TTL de la donnée
-          // (transmis depuis le middleware) plutôt qu'un fallback hardcodé.
           let remainingTTL = defaultTTL;
           try {
             const redisTTL = await redis.ttl(key);
@@ -221,32 +217,123 @@ class CacheService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // INVALIDATION
+  // INVALIDATION PAR ÉVÉNEMENT MÉTIER
+  // ✅ Émet une notification d'éviction batch avec le contexte de l'événement
   // ══════════════════════════════════════════════════════════════════════════
   async invalidate(eventType) {
     const tags = CACHE_CONFIG.invalidation[eventType] || [];
     if (!tags.length) return;
+
     console.log(`🔄 Invalidation: ${eventType} → [${tags.join(', ')}]`);
-    for (const tag of tags) await this.invalidateByTag(tag);
+
+    const allDeletedKeys = [];
+
+    for (const tag of tags) {
+      const deleted = await this.invalidateByTag(tag);
+      allDeletedKeys.push(...deleted);
+    }
+
     this.metrics.invalidations++;
+
+    // ✅ Notification éviction : batch si des clés supprimées, sinon signal vide
+    if (allDeletedKeys.length > 0) {
+      evictionEmitter.emitBatch(allDeletedKeys, 'pattern_delete', {
+        context: eventType,
+        pattern: tags.join(', '),
+      });
+    } else {
+      evictionEmitter._emitBatch({
+        pattern: tags.join(', '),
+        count:   0,
+        reason:  'pattern_delete',
+        context: eventType,
+      });
+    }
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // INVALIDATION PAR TAG — retourne les clés supprimées
+  // ══════════════════════════════════════════════════════════════════════════
   async invalidateByTag(tag) {
+    const deletedKeys = [];
+
+    // L1
     for (const [key] of this.memoryCache) {
       if (key.includes(tag)) {
         this.memoryCache.delete(key);
         this.memoryCacheStats.delete(key);
+        deletedKeys.push(key);
       }
     }
+
+    // L2
     const redis = getRedisClientSafe();
     if (redis) {
       try {
         const keys = await redis.keys(`*${tag}*`);
-        if (keys.length > 0) await redis.del(keys);
+        if (keys.length > 0) {
+          await redis.del(keys);
+          for (const k of keys) {
+            if (!deletedKeys.includes(k)) deletedKeys.push(k);
+          }
+        }
       } catch (err) {
         console.error(`Erreur invalidation tag ${tag}:`, err.message);
       }
     }
+
+    return deletedKeys;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // INVALIDATION D'UNE CLÉ UNIQUE
+  // ✅ Émet une notification d'éviction unitaire
+  // ══════════════════════════════════════════════════════════════════════════
+  async invalidateKey(key, context = 'manual_delete') {
+    // L1
+    this.memoryCache.delete(key);
+    this.memoryCacheStats.delete(key);
+
+    // L2
+    const redis = getRedisClientSafe();
+    if (redis) {
+      try {
+        await redis.del(key);
+      } catch (err) {
+        console.error(`Erreur invalidateKey [${key}]:`, err.message);
+      }
+    }
+
+    this.metrics.invalidations++;
+
+    // ✅ Notification éviction unitaire
+    evictionEmitter.emit(key, 'manual_delete', 'L1+L2', { context });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FLUSH TOTAL
+  // ✅ Émet une notification cache:cleared
+  // ══════════════════════════════════════════════════════════════════════════
+  async flush(context = 'full_flush') {
+    const count = this.memoryCache.size;
+    this.memoryCache.clear();
+    this.memoryCacheStats.clear();
+
+    const redis = getRedisClientSafe();
+    if (redis) {
+      try {
+        await redis.flushDb();
+      } catch (err) {
+        console.error('Erreur flush Redis:', err.message);
+      }
+    }
+
+    this.metrics.invalidations++;
+
+    // ✅ Notification flush total
+    evictionEmitter._emitCleared({ count, reason: 'full_flush', context });
+
+    return count;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -407,6 +494,10 @@ class CacheService {
       l3ResponseTimeSum: 0, l3ResponseTimeCount: 0,
     };
     this.metricsHistory = [];
+
+    // ✅ Notification reset métriques
+    evictionEmitter.emit('__metrics_reset__', 'reset', 'internal');
+
     console.log('🔄 Métriques reset');
   }
 }

@@ -9,9 +9,7 @@
     </span>
   </div>
 
-  <!-- ═══════════════════════════════════════
-       HERO
-  ═══════════════════════════════════════ -->
+  <!-- HERO SLIDER -->
   <section class="hero">
     <div class="hero__media">
       <div *ngFor="let s of slides; let i = index"
@@ -35,11 +33,10 @@
       <p class="hero__sub">{{ slides[slideIdx].sub }}</p>
       <div class="hero__ctas">
         <a routerLink="/products" class="btn-primary">{{ slides[slideIdx].cta }}</a>
-        <a routerLink="/new"      class="btn-text">Nouveautés <span class="arrow">→</span></a>
+        <a routerLink="/new" class="btn-text">Nouveautés <span class="arrow">→</span></a>
       </div>
     </div>
 
-    <!-- Nav dots -->
     <div class="hero__dots">
       <button *ngFor="let s of slides; let i = index"
               class="hero__dot"
@@ -48,13 +45,11 @@
       </button>
     </div>
 
-    <!-- Scroll -->
     <div class="hero__scroll">
       <div class="hero__scroll-bar"></div>
       <span>SCROLL</span>
     </div>
 
-    <!-- Slide counter -->
     <div class="hero__counter">
       <span class="hero__counter-cur">0{{ slideIdx + 1 }}</span>
       <span class="hero__counter-sep">/</span>
@@ -62,9 +57,7 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════
-       MARQUEE
-  ═══════════════════════════════════════ -->
+  <!-- MARQUEE -->
   <div class="marquee">
     <div class="marquee__track">
       <span *ngFor="let t of marqueeItems" class="marquee__item">
@@ -76,9 +69,47 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════
-       COLLECTIONS GRID
-  ═══════════════════════════════════════ -->
+  <!-- REVIEWS - DÉPLACÉ EN HAUT -->
+  <section class="reviews">
+    <div class="reviews__head">
+      <p class="label">Avis clients</p>
+      <h2 class="h2">Ils nous font confiance</h2>
+      <p class="reviews__subtitle">Des milliers de clients satisfaits partagent leur expérience</p>
+    </div>
+
+    <div class="reviews__grid" *ngIf="!reviewsLoading && reviews.length > 0">
+      <div *ngFor="let r of reviews.slice(0, 3)" class="rev-card">
+        <div class="rev-card__stars">
+          <svg *ngFor="let _ of [1,2,3,4,5]" viewBox="0 0 24 24" fill="#1a1a1a" stroke="none">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+        </div>
+        <p class="rev-card__text">{{ r.comment }}</p>
+        <div class="rev-card__author">
+          <div class="rev-card__avatar">{{ getUserInitials(r.user.name) }}</div>
+          <div>
+            <strong>{{ r.user.name }}</strong>
+            <span>{{ r.product.name }}</span>
+          </div>
+        </div>
+        <div class="rev-card__meta">
+          <span class="rev-card__date">{{ formatDate(r.createdAt) }}</span>
+          <span class="rev-card__helpful" *ngIf="r.helpful">{{ r.helpful }} personnes trouvent cet avis utile</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="reviews__loading" *ngIf="reviewsLoading">
+      <div class="spinner"></div>
+      <p>Chargement des avis...</p>
+    </div>
+
+    <div class="reviews__cta">
+      <button (click)="goToReviews()" class="btn-text">Voir tous les avis <span class="arrow">→</span></button>
+    </div>
+  </section>
+
+  <!-- COLLECTIONS -->
   <section class="collections">
     <div class="collections__head">
       <p class="label">Collections</p>
@@ -100,125 +131,177 @@
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════
-       FEATURED PRODUCTS
-  ═══════════════════════════════════════ -->
-  <section class="products">
-    <div class="products__head">
-      <div>
-        <p class="label">Sélection</p>
-        <h2 class="h2">Bestsellers</h2>
+  <!-- STATS BANNER -->
+  <div class="stats-banner">
+    <div class="stats-banner__inner">
+      <div *ngFor="let s of stats; let i = index"
+           class="stat-item"
+           [style.--si]="i">
+        <span class="stat-item__icon">{{ s.icon }}</span>
+        <strong class="stat-item__value">{{ s.value }}</strong>
+        <span class="stat-item__label">{{ s.label }}</span>
       </div>
-      <div class="products__tabs">
-        <button *ngFor="let t of tabs"
-                class="tab"
-                [class.tab--on]="tab === t.id"
-                (click)="setTab(t.id)">{{ t.label }}</button>
+    </div>
+  </div>
+
+  <!-- PRODUITS POPULAIRES - DYNAMIQUE -->
+  <section class="popular">
+    <div class="popular__head">
+      <div class="popular__title-block">
+        <p class="label">Coup de cœur</p>
+        <h2 class="h2">Produits<br><em>Populaires</em></h2>
+        <p class="popular__sub">Les incontournables de la saison, plébiscités par notre communauté.</p>
       </div>
+
+      <div class="popular__tabs">
+        <button *ngFor="let t of popularTabs"
+                class="pop-tab"
+                [class.pop-tab--on]="popularTab === t.id"
+                (click)="setPopularTab(t.id)">
+          <span class="pop-tab__icon">{{ t.icon }}</span>
+          <span>{{ t.label }}</span>
+        </button>
+      </div>
+
       <a routerLink="/products" class="btn-text">Voir tout <span class="arrow">→</span></a>
     </div>
 
-    <div class="products__grid">
-      <article *ngFor="let p of shown; let i = index"
-               class="pcard"
-               [style.--i]="i">
-        <div class="pcard__img-box">
-          <a routerLink="/product/{{ p.id }}">
-            <img [src]="p.img"      [alt]="p.name" class="pcard__img"  loading="lazy">
-            <img [src]="p.img2"     [alt]="p.name" class="pcard__img2" loading="lazy">
-          </a>
-          <div class="pcard__over">
-            <button class="pcard__wish"
-                    (click)="wish(p); $event.stopPropagation()"
-                    [class.pcard__wish--on]="p.fav">
+    <!-- Loading State -->
+    <div class="popular__loading" *ngIf="loading">
+      <div class="spinner"></div>
+      <p>Chargement des produits populaires...</p>
+    </div>
+
+    <!-- Content -->
+    <div class="popular__layout" *ngIf="!loading && shownPopular.length > 0">
+      <!-- Hero Card -->
+      <div class="popular__hero" *ngIf="shownPopular[0] as hero">
+        <div class="pop-hero-card">
+          <div class="pop-hero-card__rank">
+            <span class="pop-hero-card__rank-num">#1</span>
+            <span class="pop-hero-card__rank-fire">🔥</span>
+          </div>
+
+          <div class="pop-hero-card__img-wrap">
+            <a routerLink="/product/{{ hero._id }}">
+              <img [src]="getProductMainImage(hero)" [alt]="hero.name" class="pop-hero-card__img">
+              <img [src]="getProductSecondImage(hero)" [alt]="hero.name" class="pop-hero-card__img2">
+            </a>
+            <button class="pop-hero-card__wish"
+                    (click)="toggleWishlist(hero, $event)"
+                    [class.pop-hero-card__wish--on]="isInWishlist(hero._id || hero.id)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </button>
+            <div class="pop-hero-card__labels">
+              <span *ngIf="hero.featured" class="pcard__label">Nouveau</span>
+              <span *ngIf="isProductOnSale(hero)" class="pcard__label pcard__label--sale">-{{ getProductDiscount(hero) }}%</span>
+            </div>
+          </div>
+
+          <div class="pop-hero-card__body">
+            <p class="pop-hero-card__cat">{{ hero.category }}</p>
+            <h3 class="pop-hero-card__name">{{ hero.name }}</h3>
+
+            <div class="pop-hero-card__stars">
+              <div class="stars-bar">
+                <div class="stars-bar__fill" [style.width]="getRatingPercent(hero.rating?.average || 0) + '%'"></div>
+              </div>
+              <span class="stars-num">{{ hero.rating?.average || 0 }}/5</span>
+              <span class="stars-count">({{ hero.rating?.count || 0 }} avis)</span>
+            </div>
+
+            <div class="pop-hero-card__sold">
+              <span class="sold-dot"></span>
+              <strong>{{ hero.salesCount || 0 }}</strong> vendus ce mois
+            </div>
+
+            <div class="pop-hero-card__sizes">
+              <span *ngFor="let s of hero.sizes?.slice(0,5)" class="size-chip">{{ s }}</span>
+            </div>
+
+            <div class="pop-hero-card__footer">
+              <div class="pop-hero-card__price">
+                <span *ngIf="hero.originalPrice" class="pop-hero-card__was">{{ hero.originalPrice | number:'1.2-2' }} DT</span>
+                <span class="pop-hero-card__now">{{ hero.price | number:'1.2-2' }} DT</span>
+              </div>
+              <button class="pop-hero-card__cta" (click)="addToCart(hero, $event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="9" cy="21" r="1"/>
+                  <circle cx="20" cy="21" r="1"/>
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                </svg>
+                Ajouter au panier
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liste des produits populaires -->
+      <div class="popular__list">
+        <div *ngFor="let p of shownPopular.slice(1, 6); let i = index"
+             class="pop-list-item"
+             [style.--pi]="i">
+          <span class="pop-list-item__rank">#{{ i + 2 }}</span>
+
+          <div class="pop-list-item__img">
+            <a routerLink="/product/{{ p._id }}">
+              <img [src]="getProductMainImage(p)" [alt]="p.name" loading="lazy">
+            </a>
+          </div>
+
+          <div class="pop-list-item__info">
+            <p class="pop-list-item__cat">{{ p.category }}</p>
+            <h4 class="pop-list-item__name">{{ p.name }}</h4>
+
+            <div class="pop-list-item__stars">
+              <span *ngFor="let star of getRatingStars(p.rating?.average || 0); let si = index"
+                    class="star"
+                    [class.star--full]="star === 1"
+                    [class.star--half]="star === 0.5">★</span>
+              <span class="pop-list-item__rating">{{ p.rating?.average || 0 }}</span>
+            </div>
+
+            <div class="pop-list-item__sold">{{ p.salesCount || 0 }} vendus</div>
+          </div>
+
+          <div class="pop-list-item__right">
+            <div class="pop-list-item__price">
+              <span *ngIf="p.originalPrice" class="pop-list-item__was">{{ p.originalPrice | number:'1.2-2' }}</span>
+              <span class="pop-list-item__now">{{ p.price | number:'1.2-2' }} DT</span>
+            </div>
+            <button class="pop-list-item__btn"
+                    (click)="addToCart(p, $event)"
+                    title="Ajouter au panier">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="9" cy="21" r="1"/>
+                <circle cx="20" cy="21" r="1"/>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+              </svg>
+            </button>
+            <button class="pop-list-item__wish"
+                    (click)="toggleWishlist(p, $event)"
+                    [class.pop-list-item__wish--on]="isInWishlist(p._id || p.id)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>
             </button>
           </div>
-          <div class="pcard__labels">
-            <span *ngIf="p.isNew"  class="pcard__label">Nouveau</span>
-            <span *ngIf="p.isSale" class="pcard__label pcard__label--sale">-{{ p.off }}%</span>
-          </div>
-          <div class="pcard__sizes-bar">
-            <span *ngFor="let s of p.sizes.slice(0,4)" class="pcard__size">{{ s }}</span>
-          </div>
         </div>
-        <footer class="pcard__foot">
-          <div class="pcard__meta">
-            <h4 class="pcard__name">{{ p.name }}</h4>
-            <p class="pcard__cat">{{ p.cat }}</p>
-          </div>
-          <div class="pcard__price-block">
-            <span *ngIf="p.was" class="pcard__was">{{ p.was | number:'1.2-2' }} DT</span>
-            <span class="pcard__price">{{ p.price | number:'1.2-2' }} DT</span>
-          </div>
-          <button class="pcard__add" (click)="cart(p)">+ Panier</button>
-        </footer>
-      </article>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════
-       EDITORIAL SPLIT
-  ═══════════════════════════════════════ -->
-  <section class="editorial">
-    <div class="editorial__img-side">
-      <div class="editorial__main-img">
-        <img src="https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&h=1050&fit=crop&crop=top" alt="Editorial">
       </div>
-      <div class="editorial__accent-img">
-        <img src="https://images.unsplash.com/photo-1445205170230-053b83016050?w=500&h=400&fit=crop" alt="Editorial">
-      </div>
-      <div class="editorial__pill">50% OFF</div>
     </div>
 
-    <div class="editorial__copy">
-      <p class="label">Offre Exclusive</p>
-      <h2 class="h2">Summer<br><em>Essentials</em></h2>
-      <p class="editorial__desc">
-        Notre sélection estivale repensée — des pièces intemporelles
-        taillées pour la saison. Matières légères, silhouettes précises.
-      </p>
-      <ul class="editorial__list">
-        <li *ngFor="let f of editFeats">
-          <span class="editorial__icon">{{ f.icon }}</span>
-          <span>{{ f.text }}</span>
-        </li>
-      </ul>
-      <a routerLink="/sale" class="btn-primary">Découvrir la Collection</a>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════
-       NEW ARRIVALS — ROW
-  ═══════════════════════════════════════ -->
-  <section class="arrivals">
-    <div class="arrivals__head">
-      <p class="label">Vient d'arriver</p>
-      <h2 class="h2">Just Dropped</h2>
-    </div>
-    <div class="arrivals__row">
-      <div *ngFor="let p of newArr; let i = index"
-           class="arr-card"
-           [class.arr-card--featured]="i === 0"
-           routerLink="/product/{{ p.id }}">
-        <div class="arr-card__img">
-          <img [src]="p.img" [alt]="p.name" loading="lazy">
-          <div class="arr-card__badge">NEW</div>
-          <div class="arr-card__hover-cta">Voir le produit →</div>
-        </div>
-        <div class="arr-card__info">
-          <span class="arr-card__name">{{ p.name }}</span>
-          <span class="arr-card__price">{{ p.price | number:'1.2-2' }} DT</span>
-        </div>
+    <div class="popular__cta-band">
+      <div class="popular__cta-band-inner">
+        <p>Découvrez tous nos produits populaires sélectionnés pour vous</p>
+        <a routerLink="/products" class="btn-primary btn-primary--sm">Explorer la boutique →</a>
       </div>
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════
-       BRAND RAIL
-  ═══════════════════════════════════════ -->
+  <!-- BRANDS -->
   <div class="brand-rail">
     <span class="brand-rail__label">Nos marques</span>
     <div class="brand-rail__track">
@@ -227,36 +310,17 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════
-       TESTIMONIALS
-  ═══════════════════════════════════════ -->
-  <section class="reviews">
-    <div class="reviews__head">
-      <p class="label">Avis clients</p>
-      <h2 class="h2">Ils nous font confiance</h2>
-    </div>
-    <div class="reviews__grid">
-      <div *ngFor="let r of reviews" class="rev-card">
-        <div class="rev-card__stars">
-          <svg *ngFor="let _ of [1,2,3,4,5]" viewBox="0 0 24 24" fill="#1a1a1a" stroke="none">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
-        </div>
-        <p class="rev-card__text">{{ r.text }}</p>
-        <div class="rev-card__author">
-          <div class="rev-card__avatar">{{ r.name.charAt(0) }}</div>
-          <div>
-            <strong>{{ r.name }}</strong>
-            <span>{{ r.prod }}</span>
-          </div>
-        </div>
+  <!-- EDITORIAL FEATURES -->
+  <section class="editorial-features">
+    <div class="editorial-features__grid">
+      <div *ngFor="let f of editFeats" class="feat-card">
+        <span class="feat-card__icon">{{ f.icon }}</span>
+        <p class="feat-card__text">{{ f.text }}</p>
       </div>
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════
-       NEWSLETTER
-  ═══════════════════════════════════════ -->
+  <!-- NEWSLETTER -->
   <section class="newsletter">
     <div class="newsletter__inner">
       <div class="newsletter__copy">

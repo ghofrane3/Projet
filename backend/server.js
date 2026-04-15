@@ -23,7 +23,7 @@ import cacheService           from './services/cache.service.js';
 import { patchCacheService }  from './config/cache.config.js';
 import evictionEmitter        from './services/eviction.emitter.js'; // NOUVEAU
 import recommendationRoutes from './routes/recommendation.routes.js';
-
+import reviewRoutes from './routes/review.routes.js';
 
 dotenv.config();
 
@@ -128,7 +128,7 @@ app.use('/api/admin/cache', adminCacheRoutes);
 app.use('/api/cart',        cartRoutes);
 app.use('/api/payment',     paymentRoutes);
 app.use('/api/recommendations', recommendationRoutes);
-
+app.use('/api/reviews', reviewRoutes);
 // ════════════════════════════════════════════════════════════
 // 404 HANDLER
 // ════════════════════════════════════════════════════════════

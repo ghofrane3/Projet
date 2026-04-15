@@ -1,0 +1,276 @@
+.reviews-page {
+  background: #f8f8f8;
+  min-height: 100vh;
+  padding: 40px 0;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+// ====================== HEADER ======================
+.reviews-header {
+  text-align: center;
+  margin-bottom: 50px;
+
+  h1 {
+    font-size: 2.8rem;
+    font-weight: 400;
+    margin-bottom: 12px;
+    color: #1a1a1a;
+  }
+
+  p {
+    font-size: 1.1rem;
+    color: #666;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+}
+
+// ====================== FORMULAIRE AJOUT AVIS ======================
+.add-review-section {
+  background: white;
+  border-radius: 16px;
+  padding: 35px;
+  margin-bottom: 60px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  border: 1px solid #eee;
+
+  h3 {
+    margin: 0 0 25px 0;
+    font-size: 1.5rem;
+    color: #1a1a1a;
+  }
+}
+
+.review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 16px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    font-size: 1rem;
+    resize: vertical;
+    font-family: inherit;
+
+    &:focus {
+      outline: none;
+      border-color: #1a1a1a;
+      box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+    }
+  }
+}
+
+.rating-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  label {
+    font-weight: 600;
+    color: #444;
+    min-width: 60px;
+  }
+}
+
+.stars-input {
+  display: flex;
+  gap: 8px;
+  font-size: 2rem;
+  cursor: pointer;
+
+  span {
+    color: #ddd;
+    transition: color 0.2s ease;
+
+    &:hover,
+    &.active {
+      color: #ffc107;
+    }
+  }
+}
+
+.btn-submit {
+  align-self: flex-start;
+  background: #1a1a1a;
+  color: white;
+  border: none;
+  padding: 14px 32px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background: #333;
+    transform: translateY(-2px);
+  }
+
+  &:disabled {
+    background: #999;
+    cursor: not-allowed;
+  }
+}
+
+.message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+
+  &.success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+  }
+
+  &.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+}
+
+// ====================== LISTE DES AVIS ======================
+.reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 25px;
+}
+
+.review-card {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f0f0f0;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.review-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+
+  .avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a1a1a, #333);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #1a1a1a;
+  }
+
+  small {
+    color: #888;
+    font-size: 0.875rem;
+  }
+}
+
+.stars {
+  font-size: 1.6rem;
+  color: #ffc107;
+  margin-bottom: 16px;
+  letter-spacing: 4px;
+}
+
+.comment {
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: #444;
+  margin-bottom: 20px;
+  font-style: italic;
+}
+
+.product-info {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.helpful-btn {
+  background: #f8f8f8;
+  border: 1px solid #ddd;
+  color: #555;
+  padding: 8px 18px;
+  border-radius: 30px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: #1a1a1a;
+    color: white;
+    border-color: #1a1a1a;
+  }
+}
+
+// ====================== LOADING & EMPTY ======================
+.loading {
+  text-align: center;
+  padding: 80px 20px;
+  color: #666;
+
+  .spinner {
+    width: 50px;
+    height: 50px;
+    margin: 0 auto 20px;
+    border: 4px solid #eee;
+    border-top-color: #1a1a1a;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 100px 20px;
+  color: #888;
+  font-size: 1.1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// ====================== RESPONSIVE ======================
+@media (max-width: 768px) {
+  .reviews-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .add-review-section {
+    padding: 25px;
+  }
+
+  .reviews-header h1 {
+    font-size: 2.3rem;
+  }
+}

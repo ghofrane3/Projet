@@ -13,6 +13,21 @@ export const routes: Routes = [
     title: 'Maison Élite - Accueil'
   },
 
+
+
+
+{
+  path: 'reviews',
+  loadComponent: () => import('./services/reviews.component')
+    .then(m => m.ReviewsComponent)
+},
+
+{
+  path: 'account/wishlist',
+  redirectTo: '/account?tab=wishlist',
+  pathMatch: 'full'
+},
+
   // ════════════════════════════════════════════════════════════
   // AUTH MODULE (Lazy Loaded)
   // ════════════════════════════════════════════════════════════

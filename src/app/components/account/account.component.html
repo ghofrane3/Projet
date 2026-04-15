@@ -212,13 +212,54 @@
 
       <!-- LISTE DE SOUHAITS -->
       <div class="content-section" *ngIf="activeTab === 'wishlist'">
-        <h2 class="section-title">Ma Liste de Souhaits</h2>
-        <div class="empty-state">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <div class="section-header">
+          <h2 class="section-title">Ma Liste de Souhaits</h2>
+          <span class="wishlist-count" *ngIf="wishlist.length > 0">
+            {{ wishlist.length }} article(s)
+          </span>
+        </div>
+
+        <!-- État vide -->
+        <div class="empty-state" *ngIf="wishlist.length === 0">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
           <h3>Liste vide</h3>
           <p>Ajoutez des articles à vos favoris</p>
+          <button class="btn btn-primary" routerLink="/products">
+            Découvrir nos produits
+          </button>
+        </div>
+
+        <!-- Liste des produits -->
+        <div class="wishlist-grid" *ngIf="wishlist.length > 0">
+          <div *ngFor="let product of wishlist; trackBy: trackByProductId" class="wishlist-item">
+
+            <div class="wishlist-image">
+              <img [src]="getProductMainImage(product)" [alt]="product.name" />
+              <button class="remove-wish-btn" (click)="removeFromWishlist(product)" title="Retirer des favoris">
+                ✕
+              </button>
+            </div>
+
+            <div class="wishlist-details">
+              <h3 class="product-name">{{ product.name }}</h3>
+              <p class="product-category">{{ product.category }}</p>
+
+              <div class="product-price">
+                {{ product.price | number:'1.2-2' }} DT
+              </div>
+
+              <div class="wishlist-actions">
+                <button class="btn btn-primary btn-sm" (click)="addToCart(product)">
+                  Ajouter au panier
+                </button>
+                <button class="btn btn-outline btn-sm" (click)="removeFromWishlist(product)">
+                  Retirer
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

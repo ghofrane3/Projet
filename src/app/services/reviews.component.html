@@ -1,0 +1,43 @@
+<div class="add-review-section">
+  <h3>Partager votre avis</h3>
+
+  <div class="review-form">
+    <!-- Sélection du produit -->
+    <div class="form-group">
+      <label>Produit concerné :</label>
+      <select [(ngModel)]="newReview.productId" required>
+        <option value="">-- Choisissez un produit --</option>
+        <option *ngFor="let p of allProducts" [value]="p._id">
+          {{ p.name }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Note -->
+    <div class="rating-selector">
+      <label>Note :</label>
+      <div class="stars-input">
+        <span *ngFor="let star of [1,2,3,4,5]"
+              (click)="newReview.rating = star"
+              [class.active]="newReview.rating >= star">★</span>
+      </div>
+    </div>
+
+    <!-- Commentaire -->
+    <textarea
+      [(ngModel)]="newReview.comment"
+      placeholder="Dites-nous ce que vous avez pensé de ce produit..."
+      rows="5">
+    </textarea>
+
+    <button
+      (click)="submitReview()"
+      [disabled]="submitting || !newReview.productId || !newReview.comment.trim()"
+      class="btn-submit">
+      {{ submitting ? 'Publication en cours...' : 'Publier mon avis' }}
+    </button>
+
+    <div class="message success" *ngIf="successMessage">{{ successMessage }}</div>
+    <div class="message error" *ngIf="errorMessage">{{ errorMessage }}</div>
+  </div>
+</div>

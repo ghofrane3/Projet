@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit} from '@angular/core';
+import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { loadStripe, Stripe, StripeCardElement } from '@stripe/stripe-js';
@@ -24,6 +24,10 @@ export class CheckoutComponent implements OnInit, AfterViewInit {
     phone: '', address: '', city: '',
     postalCode: '', country: 'France'
   };
+
+  // ── Erreurs de validation inline
+  phoneError = '';
+  postalError = '';
 
   // ── Stripe
   private stripe: Stripe | null = null;
@@ -76,12 +80,59 @@ export class CheckoutComponent implements OnInit, AfterViewInit {
   }
 
   // ════════════════════════════════════════════
+  // VALIDATION
+  // ════════════════════════════════════════════
+
+  isValidPhone(phone: string): boolean {
+    // Accepte : 06XXXXXXXX / +33XXXXXXXXX / +216XXXXXXXX / formats internationaux
+    return /^(\+?\d[\d\s\-]{7,14}\d)$/.test(phone.trim());
+  }
+
+  isValidPostalCode(code: string): boolean {
+    const country = this.deliveryForm.country;
+    if (country === 'Tunisie') {
+      return /^\d{4}$/.test(code.trim()); // 4 chiffres pour la Tunisie
+    }
+    return /^\d{4,5}$/.test(code.trim()); // 4-5 chiffres pour les autres pays
+  }
+
+  onPhoneChange(): void {
+    const v = this.deliveryForm.phone.trim();
+    if (!v) { this.phoneError = ''; return; }
+    this.phoneError = this.isValidPhone(v)
+      ? ''
+      : 'Format invalide (ex: 0612345678 ou +216 XX XXX XXX)';
+  }
+
+  onPostalChange(): void {
+    const v = this.deliveryForm.postalCode.trim();
+    if (!v) { this.postalError = ''; return; }
+    const isTunisie = this.deliveryForm.country === 'Tunisie';
+    this.postalError = this.isValidPostalCode(v)
+      ? ''
+      : isTunisie
+        ? 'Code postal invalide (4 chiffres requis pour la Tunisie)'
+        : 'Code postal invalide (5 chiffres requis)';
+  }
+
+  onCountryChange(): void {
+    // Re-valider le code postal si déjà saisi quand on change de pays
+    if (this.deliveryForm.postalCode) {
+      this.onPostalChange();
+    }
+  }
+
+  // ════════════════════════════════════════════
   // ÉTAPE 1 — LIVRAISON
   // ════════════════════════════════════════════
 
   onDeliverySubmit(): void {
+    // Déclencher la validation de tous les champs
+    this.onPhoneChange();
+    this.onPostalChange();
+
     if (!this.validateDeliveryForm()) {
-      this.error = 'Veuillez remplir tous les champs obligatoires';
+      this.error = 'Veuillez corriger les champs invalides avant de continuer';
       return;
     }
     this.error = '';
@@ -93,7 +144,13 @@ export class CheckoutComponent implements OnInit, AfterViewInit {
 
   validateDeliveryForm(): boolean {
     const f = this.deliveryForm;
-    return !!(f.firstName && f.lastName && f.email && f.phone && f.address && f.city && f.postalCode);
+    const allFilled = !!(
+      f.firstName && f.lastName && f.email &&
+      f.phone && f.address && f.city && f.postalCode
+    );
+    const phoneOk = this.isValidPhone(f.phone);
+    const postalOk = this.isValidPostalCode(f.postalCode);
+    return allFilled && phoneOk && postalOk;
   }
 
   // ════════════════════════════════════════════
@@ -107,7 +164,6 @@ export class CheckoutComponent implements OnInit, AfterViewInit {
 
     const elements = this.stripe.elements();
 
-    // Créer le widget carte
     this.cardElement = elements.create('card', {
       style: {
         base: {
@@ -119,7 +175,6 @@ export class CheckoutComponent implements OnInit, AfterViewInit {
       }
     });
 
-    // Monter dans le div #card-element du HTML
     this.cardElement.mount('#card-element');
   }
 
@@ -180,7 +235,6 @@ export class CheckoutComponent implements OnInit, AfterViewInit {
             });
           },
           error: () => {
-            // Le paiement a réussi même si la confirmation échoue
             this.router.navigate(['/cart/confirmation', res.orderId], {
               queryParams: { orderId: res.orderId }
             });

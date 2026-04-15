@@ -1,7 +1,9 @@
+
 import express from 'express';
 import { authenticateUser } from '../middleware/auth.js';
 import User from '../models/User.js';
 import Order from '../models/Order.js';
+import Product from '../models/Product.js';
 
 const router = express.Router();
 
@@ -20,83 +22,52 @@ const isAdmin = (req, res, next) => {
 };
 
 // ════════════════════════════════════════════════════════════
-// RÉCUPÉRER TOUS LES UTILISATEURS
+// USERS
 // ════════════════════════════════════════════════════════════
 
+// GET ALL USERS
 router.get('/users', authenticateUser, isAdmin, async (req, res) => {
   try {
-    console.log('📋 Récupération des utilisateurs...');
-
     const users = await User.find()
-      .select('-password') // Ne pas renvoyer les mots de passe
-      .sort({ createdAt: -1 }); // Trier par date de création (plus récents en premier)
-
-    console.log(`✅ ${users.length} utilisateurs trouvés`);
+      .select('-password')
+      .sort({ createdAt: -1 });
 
     res.json({
       success: true,
-      users: users,
+      users,
       total: users.length
     });
   } catch (error) {
-    console.error('❌ Erreur récupération utilisateurs:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
-// ════════════════════════════════════════════════════════════
-// RÉCUPÉRER UN UTILISATEUR PAR ID
-// ════════════════════════════════════════════════════════════
-
+// GET USER BY ID
 router.get('/users/:userId', authenticateUser, isAdmin, async (req, res) => {
   try {
-    const { userId } = req.params;
-
-    const user = await User.findById(userId).select('-password');
+    const user = await User.findById(req.params.userId).select('-password');
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Utilisateur introuvable'
-      });
+      return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
     }
 
-    res.json({
-      success: true,
-      user
-    });
+    res.json({ success: true, user });
   } catch (error) {
-    console.error('❌ Erreur récupération utilisateur:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur'
-    });
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
-// ════════════════════════════════════════════════════════════
-// METTRE À JOUR UN UTILISATEUR
-// ════════════════════════════════════════════════════════════
-
+// UPDATE USER
 router.put('/users/:userId', authenticateUser, isAdmin, async (req, res) => {
   try {
-    const { userId } = req.params;
     const { name, email, role, isVerified } = req.body;
 
-    const user = await User.findById(userId);
+    const user = await User.findById(req.params.userId);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Utilisateur introuvable'
-      });
+      return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
     }
 
-    // Mettre à jour les champs
     if (name) user.name = name;
     if (email) user.email = email;
     if (role) user.role = role;
@@ -104,66 +75,62 @@ router.put('/users/:userId', authenticateUser, isAdmin, async (req, res) => {
 
     await user.save();
 
-    res.json({
-      success: true,
-      message: 'Utilisateur mis à jour',
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        isVerified: user.isVerified
-      }
-    });
+    res.json({ success: true, message: 'Utilisateur mis à jour', user });
   } catch (error) {
-    console.error('❌ Erreur mise à jour utilisateur:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur'
-    });
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
-// ════════════════════════════════════════════════════════════
-// SUPPRIMER UN UTILISATEUR
-// ════════════════════════════════════════════════════════════
-
+// DELETE USER
 router.delete('/users/:userId', authenticateUser, isAdmin, async (req, res) => {
   try {
-    const { userId } = req.params;
-
-    // Ne pas permettre de supprimer son propre compte
-    if (userId === req.user.id) {
+    if (req.params.userId === req.user.id) {
       return res.status(400).json({
         success: false,
         message: 'Vous ne pouvez pas supprimer votre propre compte'
       });
     }
 
-    const user = await User.findByIdAndDelete(userId);
+    const user = await User.findByIdAndDelete(req.params.userId);
 
     if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
+    }
+
+    res.json({ success: true, message: 'Utilisateur supprimé' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// PRODUITS
+// ════════════════════════════════════════════════════════════
+
+// GET PRODUCT BY ID
+router.get('/products/:id', authenticateUser, isAdmin, async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Utilisateur introuvable'
+        message: 'Produit introuvable'
       });
     }
 
     res.json({
       success: true,
-      message: 'Utilisateur supprimé'
+      product
     });
   } catch (error) {
-    console.error('❌ Erreur suppression utilisateur:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur'
-    });
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
 // ════════════════════════════════════════════════════════════
-// STATISTIQUES ADMIN
+// STATS
 // ════════════════════════════════════════════════════════════
 
 router.get('/stats', authenticateUser, isAdmin, async (req, res) => {
@@ -172,54 +139,66 @@ router.get('/stats', authenticateUser, isAdmin, async (req, res) => {
     const users = await User.find({ role: 'user' });
 
     const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-    const averageBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-    // Stats du mois
-    const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const lastMonthOrders = orders.filter(o => {
-      const date = new Date(o.createdAt);
-      return date >= lastMonth && date < thisMonth;
-    });
-
-    const thisMonthOrders = orders.filter(o => {
-      const date = new Date(o.createdAt);
-      return date >= thisMonth;
-    });
-
-    const lastMonthRevenue = lastMonthOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-    const thisMonthRevenue = thisMonthOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-
-    const revenueChange = lastMonthRevenue > 0
-      ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
-      : 0;
-
-    const ordersChange = lastMonthOrders.length > 0
-      ? ((thisMonthOrders.length - lastMonthOrders.length) / lastMonthOrders.length) * 100
-      : 0;
+    const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
 
     res.json({
       success: true,
       stats: {
-        totalRevenue: Math.round(totalRevenue),
-        revenueChange: Math.round(revenueChange * 10) / 10,
+        totalRevenue,
         totalOrders,
-        ordersChange: Math.round(ordersChange * 10) / 10,
-        totalUsers: users.length,
-        clientsChange: 0,
-        averageBasket: Math.round(averageBasket),
-        basketChange: 0
+        totalUsers: users.length
       }
     });
   } catch (error) {
-    console.error('❌ Erreur stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur'
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// REVENUE MENSUEL
+// ════════════════════════════════════════════════════════════
+
+router.get('/revenue/monthly', authenticateUser, isAdmin, async (req, res) => {
+  try {
+    const orders = await Order.find();
+
+    const monthly = {};
+
+    orders.forEach(order => {
+      const month = new Date(order.createdAt).toLocaleString('default', { month: 'short' });
+
+      if (!monthly[month]) monthly[month] = 0;
+
+      monthly[month] += order.totalAmount;
     });
+
+    res.json({
+      success: true,
+      data: monthly
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// DISTRIBUTION CLIENTS
+// ════════════════════════════════════════════════════════════
+
+router.get('/clients/distribution', authenticateUser, isAdmin, async (req, res) => {
+  try {
+    const total = await User.countDocuments({ role: 'user' });
+    const verified = await User.countDocuments({ role: 'user', isVerified: true });
+
+    res.json({
+      success: true,
+      data: {
+        verified,
+        nonVerified: total - verified
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 

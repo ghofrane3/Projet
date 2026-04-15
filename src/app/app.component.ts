@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { CoreModule } from './core/core.module';
 import { HttpClientModule } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-root',
@@ -11,7 +12,8 @@ import { FormsModule } from '@angular/forms';
     RouterOutlet,
     HttpClientModule,
     FormsModule,
-    CoreModule
+    CoreModule,
+    CommonModule
   ],
   template: `
     <app-header></app-header>

@@ -4,6 +4,9 @@ import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
+import { WishlistService } from '../../services/wishlist.service';
+import { CartService } from '../../services/cart.service';
+import { Product } from '../../models/product.model';
 
 interface Order {
   _id: string;
@@ -14,6 +17,11 @@ interface Order {
   items: number;
 }
 
+interface ImageObject {
+  url: string;
+  isMain?: boolean;
+}
+
 @Component({
   selector: 'app-account',
   standalone: true,
@@ -22,21 +30,34 @@ interface Order {
   styleUrls: ['./account.component.scss']
 })
 export class AccountComponent implements OnInit {
+
   activeTab = 'profile';
   user: any = null;
 
   profileForm = {
-    firstName: '', lastName: '', email: '',
-    phone: '', address: '', city: '', postalCode: ''
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    postalCode: ''
   };
 
   securityForm = {
-    currentPassword: '', newPassword: '', confirmPassword: ''
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
   };
 
   orders: Order[] = [];
+  wishlist: Product[] = [];
 
-  stats = { totalOrders: 0, totalSpent: 0, wishlistCount: 0 };
+  stats = {
+    totalOrders: 0,
+    totalSpent: 0,
+    wishlistCount: 0
+  };
 
   loading = false;
   saving = false;
@@ -45,9 +66,11 @@ export class AccountComponent implements OnInit {
 
   constructor(
     private authService: AuthService,
+    private wishlistService: WishlistService,
+    private cartService: CartService,
     private http: HttpClient,
     private router: Router,
-    private route: ActivatedRoute   // ✅ pour lire queryParams (tab=orders)
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
@@ -58,8 +81,7 @@ export class AccountComponent implements OnInit {
       return;
     }
 
-    // ✅ Lire le tab depuis queryParams si présent
-    // ex: /account?tab=orders redirigé depuis order-confirmation
+    // Gestion du tab via queryParams (ex: ?tab=wishlist)
     this.route.queryParams.subscribe(params => {
       if (params['tab']) {
         this.activeTab = params['tab'];
@@ -68,8 +90,67 @@ export class AccountComponent implements OnInit {
 
     this.loadUserData();
     this.loadOrders();
+    this.loadWishlist();
   }
 
+  // ====================== WISHLIST ======================
+  private loadWishlist(): void {
+    this.wishlist = this.wishlistService.getWishlist();
+    this.stats.wishlistCount = this.wishlist.length;
+
+    // Mise à jour en temps réel quand on ajoute/retire un produit
+    this.wishlistService.watchWishlist().subscribe(products => {
+      this.wishlist = products;
+      this.stats.wishlistCount = products.length;
+    });
+  }
+
+  removeFromWishlist(product: Product): void {
+    const productId = (product._id || product.id)?.toString();
+    if (productId) {
+      this.wishlistService.removeFromWishlist(productId);
+      this.success = 'Produit retiré de la liste de souhaits';
+      setTimeout(() => this.success = '', 3000);
+    }
+  }
+
+  addToCart(product: Product): void {
+    if (!product.inStock) {
+      this.error = 'Produit en rupture de stock';
+      setTimeout(() => this.error = '', 3000);
+      return;
+    }
+
+    const size = product.sizes && product.sizes.length > 0 ? product.sizes[0] : 'Unique';
+
+    this.cartService.addToCart(product, 1, size, 'Standard');
+
+    this.success = `"${product.name}" ajouté au panier ✓`;
+    setTimeout(() => this.success = '', 3000);
+  }
+
+  getProductMainImage(product: Product): string {
+    if (!product.images || product.images.length === 0) {
+      return 'https://res.cloudinary.com/dn58shb9y/image/upload/v1/placeholder.jpg';
+    }
+
+    // Recherche d'une image principale
+    const mainImg = product.images.find((img): img is ImageObject =>
+      typeof img === 'object' && img !== null && 'isMain' in img && img.isMain === true
+    );
+
+    if (mainImg?.url) return mainImg.url;
+
+    // Sinon première image
+    const first = product.images[0];
+    return typeof first === 'string' ? first : (first?.url || 'https://res.cloudinary.com/dn58shb9y/image/upload/v1/placeholder.jpg');
+  }
+
+  trackByProductId(index: number, product: Product): string {
+    return (product._id || product.id || index).toString();
+  }
+
+  // ====================== PROFIL & COMMANDES (inchangés) ======================
   loadUserData(): void {
     if (this.user) {
       const [firstName, ...lastNameParts] = this.user.name.split(' ');
@@ -92,14 +173,11 @@ export class AccountComponent implements OnInit {
       withCredentials: true
     }).subscribe({
       next: (response) => {
-        console.log('✅ Commandes reçues:', response);
         if (response.success) {
-          // ✅ supporter les deux structures backend: orders ou data
           const rawOrders = response.orders || response.data || [];
 
           if (Array.isArray(rawOrders)) {
             this.orders = rawOrders.map((order: any) => {
-              // ✅ backend utilise 'products' pas 'items'
               const itemsArray = Array.isArray(order.items) ? order.items
                                : Array.isArray(order.products) ? order.products
                                : [];
@@ -113,7 +191,6 @@ export class AccountComponent implements OnInit {
               };
             });
 
-            // ✅ Stats calculées localement
             this.stats.totalOrders = this.orders.length;
             this.stats.totalSpent = this.orders.reduce((sum, o) => sum + o.total, 0);
           }
@@ -121,7 +198,7 @@ export class AccountComponent implements OnInit {
         this.loading = false;
       },
       error: (error) => {
-        console.error('❌ Erreur commandes:', error);
+        console.error('Erreur chargement commandes:', error);
         this.loading = false;
       }
     });
@@ -210,16 +287,21 @@ export class AccountComponent implements OnInit {
 
   translateStatus(status: string): string {
     const statusMap: { [key: string]: string } = {
-      'pending': 'En attente', 'processing': 'En cours',
-      'shipped': 'Expédié', 'delivered': 'Livré', 'cancelled': 'Annulé'
+      'pending': 'En attente',
+      'processing': 'En cours',
+      'shipped': 'Expédié',
+      'delivered': 'Livré',
+      'cancelled': 'Annulé'
     };
     return statusMap[status] || status;
   }
 
   getStatusClass(status: string): string {
     const classMap: { [key: string]: string } = {
-      'Livré': 'status-delivered', 'En cours': 'status-processing',
-      'En attente': 'status-pending', 'Expédié': 'status-shipped',
+      'Livré': 'status-delivered',
+      'En cours': 'status-processing',
+      'En attente': 'status-pending',
+      'Expédié': 'status-shipped',
       'Annulé': 'status-cancelled'
     };
     return classMap[status] || 'status-default';
