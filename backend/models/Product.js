@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import domainEmitter from '../services/domainEventEmitter.js';
 
 const productSchema = new mongoose.Schema({
   // Informations de base
@@ -21,7 +22,7 @@ const productSchema = new mongoose.Schema({
   },
   originalPrice: {
     type: Number,
-    default: null // Prix avant promotion
+    default: null
   },
 
   // Catégorie et type
@@ -39,23 +40,27 @@ const productSchema = new mongoose.Schema({
     default: 'Unisexe'
   },
 
-  // Variantes
+  // Variantes - TAilles corrigées
   sizes: {
     type: [String],
-    enum: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL',
-           '34', '36', '38', '40', '42', '44', '46', '48',
-           '36EU', '37EU', '38EU', '39EU', '40EU', '41EU', '42EU', '43EU', '44EU', '45EU'],
+    enum: [
+      'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL',
+      '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40',
+      '42', '44', '46', '48', '50',
+      '36EU', '37EU', '38EU', '39EU', '40EU', '41EU', '42EU', '43EU', '44EU', '45EU'
+    ],
     default: []
   },
+
   colors: [{
-    name: { type: String, required: true },  // ex: "Rouge", "Bleu nuit"
-    hex: { type: String, default: '#000000' } // Code couleur hex
+    name: { type: String, required: true },
+    hex: { type: String, default: '#000000' }
   }],
 
   // Images
   images: [{
     url: { type: String, required: true },
-    publicId: { type: String },   // ID Cloudinary si utilisé
+    publicId: { type: String },
     isMain: { type: Boolean, default: false }
   }],
 
@@ -88,10 +93,10 @@ const productSchema = new mongoose.Schema({
   // Informations supplémentaires
   material: { type: String, default: '' },
   brand: { type: String, default: 'Fashion Store' },
-  sku: { type: String, unique: true, sparse: true }, // Code produit unique
+  sku: { type: String, unique: true, sparse: true },
 
 }, {
-  timestamps: true // createdAt et updatedAt automatiques
+  timestamps: true
 });
 
 // ==========================================
@@ -133,18 +138,43 @@ productSchema.virtual('isInStock').get(function() {
   return this.stock > 0;
 });
 
-// Inclure les virtuels dans JSON
 productSchema.set('toJSON', { virtuals: true });
 productSchema.set('toObject', { virtuals: true });
 
 // ==========================================
-// INDEX pour les performances
+// INDEX
 // ==========================================
 productSchema.index({ name: 'text', description: 'text', tags: 'text' });
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ price: 1 });
 productSchema.index({ featured: 1, isActive: 1 });
 productSchema.index({ createdAt: -1 });
+
+// ====================== MIDDLEWARES METIER ======================
+productSchema.post('save', function(doc) {
+  const eventName = doc.isNew ? 'product.created' : 'product.updated';
+  domainEmitter.emit(eventName, {
+    productId: doc._id,
+    action: doc.isNew ? 'created' : 'updated'
+  });
+});
+
+productSchema.post('findOneAndUpdate', function(doc) {
+  if (doc) {
+    domainEmitter.emit('product.updated', {
+      productId: doc._id,
+      action: 'updated'
+    });
+  }
+});
+
+productSchema.post('findOneAndDelete', function(doc) {
+  if (doc) {
+    domainEmitter.emit('product.deleted', {
+      productId: doc._id
+    });
+  }
+});
 
 const Product = mongoose.model('Product', productSchema);
 

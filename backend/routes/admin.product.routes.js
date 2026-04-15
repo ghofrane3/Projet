@@ -175,7 +175,8 @@ router.put('/products/:id', uploadMiddleware, async (req, res) => {
     const updated = await Product.findByIdAndUpdate(
       req.params.id,
       updates,
-      { new: true, runValidators: true }
+      { new: true,
+       runValidators: true }
     );
 
     console.log('✅ Produit mis à jour:', req.params.id);

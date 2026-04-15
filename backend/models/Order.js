@@ -44,4 +44,34 @@ paymentIntentId: { type: String }
 paymentStatus: { type: String }
 const Order = mongoose.model('Order', orderSchema);
 
+// ====================== MIDDLEWARES METIER (post hooks) ======================
+import domainEmitter from '../services/domainEventEmitter.js';
+
+orderSchema.post('save', function(doc) {
+  const eventName = doc.isNew ? 'order.created' : 'order.updated';
+  domainEmitter.emit(eventName, {
+    orderId: doc._id,
+    userId: doc.userId
+  });
+});
+
+orderSchema.post('findOneAndUpdate', function(doc) {
+  if (doc) {
+    domainEmitter.emit('order.updated', {
+      orderId: doc._id,
+      userId: doc.userId
+    });
+  }
+});
+
+orderSchema.post('findOneAndDelete', function(doc) {
+  if (doc) {
+    domainEmitter.emit('order.deleted', {
+      orderId: doc._id,
+      userId: doc.userId
+    });
+  }
+});
+
+
 export default Order;

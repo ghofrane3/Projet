@@ -24,7 +24,7 @@ import { patchCacheService }  from './config/cache.config.js';
 import evictionEmitter        from './services/eviction.emitter.js'; // NOUVEAU
 import recommendationRoutes from './routes/recommendation.routes.js';
 import reviewRoutes from './routes/review.routes.js';
-
+import './services/cacheInvalidationListener.js';
 dotenv.config();
 
 const __dirname    = path.dirname(fileURLToPath(import.meta.url));
