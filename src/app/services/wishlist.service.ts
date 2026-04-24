@@ -1,39 +1,43 @@
 import { Injectable } from '@angular/core';
+import { HttpClient }  from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Product } from '../models/product.model';
+import { AuthService } from './auth.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class WishlistService {
-  private readonly STORAGE_KEY = 'fashion_store_wishlist';
-  private wishlistSubject = new BehaviorSubject<Product[]>(this.loadWishlist());
 
-  public wishlist$ = this.wishlistSubject.asObservable();
+  private readonly API = 'http://localhost:5000/api/wishlist';
 
-  constructor() {
-    this.loadWishlist();
-  }
+  private wishlistSubject = new BehaviorSubject<Product[]>([]);
+  public  wishlist$ = this.wishlistSubject.asObservable();
 
-  private loadWishlist(): Product[] {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Erreur chargement wishlist:', error);
-      return [];
+  constructor(
+    private http: HttpClient,
+    private authService: AuthService
+  ) {
+    // Charger depuis le backend uniquement si l'utilisateur est connecté
+    if (this.authService.isAuthenticated()) {
+      this.refreshFromBackend();
     }
   }
 
-  private saveWishlist(wishlist: Product[]): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(wishlist));
-      this.wishlistSubject.next(wishlist);
-    } catch (error) {
-      console.error('Erreur sauvegarde wishlist:', error);
-    }
+  // ── Chargement backend ──────────────────────────────────
+  refreshFromBackend(): void {
+    this.http.get<any>(this.API, { withCredentials: true }).subscribe({
+      next: (res) => {
+        const products: Product[] = res.wishlist || [];
+        this.wishlistSubject.next(products);
+      },
+      error: (err) => {
+        // 401 = non connecté : liste vide, pas de crash
+        console.warn('Wishlist non chargée (utilisateur non connecté ?):', err.status);
+        this.wishlistSubject.next([]);
+      }
+    });
   }
 
+  // ── API synchrone (pour account.component + home.component) ─
   getWishlist(): Product[] {
     return this.wishlistSubject.value;
   }
@@ -45,41 +49,57 @@ export class WishlistService {
   isInWishlist(productId: string | number | undefined): boolean {
     if (!productId) return false;
     const idStr = String(productId);
-    return this.wishlistSubject.value.some(item => {
-      const itemId = (item._id || item.id)?.toString();
-      return itemId === idStr;
-    });
+    return this.wishlistSubject.value.some(p =>
+      (p._id || p.id)?.toString() === idStr
+    );
   }
 
+  // ── Observable (pour account.component watchWishlist) ─
+  watchWishlist(): Observable<Product[]> {
+    return this.wishlist$;
+  }
+
+  // ── Mutations avec optimistic update ──────────────────
   addToWishlist(product: Product): void {
-    const wishlist = this.wishlistSubject.value;
     const productId = (product._id || product.id)?.toString();
-    if (!productId) return;
+    if (!productId || this.isInWishlist(productId)) return;
 
-    if (this.isInWishlist(productId)) return;
+    // Optimistic update immédiat
+    this.wishlistSubject.next([...this.wishlistSubject.value, product]);
 
-    const updated = [...wishlist, product];
-    this.saveWishlist(updated);
-    console.log(`✓ Produit "${product.name}" ajouté à la wishlist`);
+    this.http.post(`${this.API}/${productId}`, {}, { withCredentials: true }).subscribe({
+      error: () => {
+        // Rollback si le backend refuse (ex: non connecté)
+        this.wishlistSubject.next(
+          this.wishlistSubject.value.filter(p =>
+            (p._id || p.id)?.toString() !== productId
+          )
+        );
+      }
+    });
   }
 
   removeFromWishlist(productId: string | number | undefined): void {
     if (!productId) return;
     const idStr = String(productId);
 
-    const updated = this.wishlistSubject.value.filter(item => {
-      const itemId = (item._id || item.id)?.toString();
-      return itemId !== idStr;
-    });
+    // Optimistic update
+    const before = this.wishlistSubject.value;
+    this.wishlistSubject.next(before.filter(p =>
+      (p._id || p.id)?.toString() !== idStr
+    ));
 
-    this.saveWishlist(updated);
-    console.log('✓ Produit retiré de la wishlist');
+    this.http.delete(`${this.API}/${idStr}`, { withCredentials: true }).subscribe({
+      error: () => {
+        // Rollback
+        this.wishlistSubject.next(before);
+      }
+    });
   }
 
   toggleWishlist(product: Product): void {
     const productId = (product._id || product.id)?.toString();
     if (!productId) return;
-
     if (this.isInWishlist(productId)) {
       this.removeFromWishlist(productId);
     } else {
@@ -88,11 +108,6 @@ export class WishlistService {
   }
 
   clearWishlist(): void {
-    this.saveWishlist([]);
-    console.log('✓ Wishlist vidée');
-  }
-
-  watchWishlist(): Observable<Product[]> {
-    return this.wishlist$;
+    this.wishlistSubject.next([]);
   }
 }

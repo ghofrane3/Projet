@@ -1,6 +1,6 @@
 /**
  * cacheInvalidationListener.js
- * Écoute les événements métier et invalide automatiquement le cache + notifie l'admin
+ * Écoute les événements métier et invalide automatiquement le cache
  */
 
 import domainEmitter from './domainEventEmitter.js';
@@ -43,12 +43,12 @@ domainEmitter.on('order.deleted', async (payload) => {
   evictionEmitter.emit(`orders:user:${payload.userId}`, 'order_deleted', 'L1+L2');
 });
 
-// Fonctions d'invalidation
+// ==================== FONCTIONS D'INVALIDATION ====================
+
 async function invalidateProductCache(payload) {
   try {
-    await cacheService.invalidatePattern?.('products:*');
-    await cacheService.invalidatePattern?.('trending:*');
-    // Ajoute ici d'autres patterns si tu en as (ex: categories, homepage...)
+    await cacheService.invalidateByTag('products');
+    await cacheService.invalidateByTag('trending');
   } catch (err) {
     console.error('❌ Erreur invalidation cache produit:', err);
   }
@@ -59,11 +59,11 @@ async function invalidateOrderCache(payload) {
     if (payload.userId) {
       await cacheService.delete(`orders:user:${payload.userId}`);
     }
-    await cacheService.invalidatePattern?.('stats:orders:*'); // si tu caches des stats
+    await cacheService.invalidateByTag('stats:orders');
   } catch (err) {
     console.error('❌ Erreur invalidation cache commande:', err);
   }
 }
 
 console.log('✅ Cache Invalidation Listener chargé');
-export default null; // Pour forcer le chargement du module
+export default null;

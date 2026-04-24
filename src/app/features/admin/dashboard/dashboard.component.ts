@@ -1,298 +1,332 @@
-import { Component, OnInit } from '@angular/core';
+// src/app/features/admin/dashboard/dashboard.component.ts
+import { Component, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
+const API = 'http://localhost:5000/api';
+
 interface DashboardStats {
-  totalRevenue: number;
-  revenueChange: number;
-  totalOrders: number;
-  ordersChange: number;
-  activeClients: number;
-  clientsChange: number;
-  averageBasket: number;
-  basketChange: number;
+  totalRevenue: number; revenueChange: number;
+  totalOrders: number;  ordersChange: number;
+  activeClients: number; clientsChange: number;
+  averageBasket: number; basketChange: number;
 }
 
 interface RecentOrder {
-  _id: string;
-  orderNumber: string;
-  customerName: string;
-  date: string;
-  amount: number;
-  status: string;
+  _id: string; orderNumber: string; customerName: string;
+  date: string; amount: number; status: string;
+  hasDelivery: boolean; carrier: string; trackingNumber: string;
 }
 
-interface MonthlyRevenue {
-  month: string;
-  revenue: number;
+interface DeliveryStats {
+  total: number; pending: number; processing: number;
+  shipped: number; delivered: number; cancelled: number;
 }
+
+interface MonthlyRevenue { month: string; revenue: number; }
+interface CategoryRevenue { category: string; revenue: number; }
+interface TopProduct    { name: string; salesCount: number; category: string; }
+interface LowStockItem  { _id: string; name: string; stock: number; category: string; price: number; }
+interface CategoryStock { category: string; value: number; }
+interface TopClient     { userId: string; name: string; email: string; totalSpent: number; orderCount: number; }
+interface BasketTrend   { period: string; average: number; }
 
 @Component({
   selector: 'app-dashboard',
+  standalone: false,
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss']
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
+
   loading = true;
+  activeSection: 'overview' | 'inventory' | 'clients' | 'funnel' = 'overview';
 
-  // Stats par défaut
   stats: DashboardStats = {
-    totalRevenue: 0,
-    revenueChange: 0,
-    totalOrders: 0,
-    ordersChange: 0,
-    activeClients: 0,
-    clientsChange: 0,
-    averageBasket: 0,
-    basketChange: 0
+    totalRevenue: 0, revenueChange: 0, totalOrders: 0, ordersChange: 0,
+    activeClients: 0, clientsChange: 0, averageBasket: 0, basketChange: 0
   };
 
-  recentOrders: RecentOrder[] = [];
-  monthlyRevenue: MonthlyRevenue[] = [];
-
-  clientDistribution = {
-    femme: 0,
-    homme: 0,
-    autres: 0
+  // ✅ Stats livraison
+  deliveryStats: DeliveryStats = {
+    total: 0, pending: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0
   };
+
+  recentOrders:    RecentOrder[]    = [];
+  monthlyRevenue:  MonthlyRevenue[] = [];
+  categoryRevenue: CategoryRevenue[] = [];
+  topProducts:     TopProduct[]    = [];
+  lowStockItems:   LowStockItem[]  = [];
+  categoryStock:   CategoryStock[] = [];
+  topClients:      TopClient[]     = [];
+  basketTrend:     BasketTrend[]   = [];
+  outOfStockCount  = 0;
+
+  clientDistribution = { femme: 0, homme: 0, autres: 0 };
+
+  funnel = { views: 0, cart: 0, checkout: 0, orders: 0 };
+
+  lowStockThreshold = 10;
 
   constructor(private http: HttpClient) {}
 
-  ngOnInit(): void {
-    this.loadDashboardData();
+  ngOnInit(): void    { this.loadAll(); }
+  ngAfterViewInit(): void {}
+  ngOnDestroy(): void {}
+
+  setSection(s: 'overview' | 'inventory' | 'clients' | 'funnel'): void {
+    this.activeSection = s;
   }
 
-  // ════════════════════════════════════════════════════════════
-  // CHARGER TOUTES LES DONNÉES DU DASHBOARD
-  // ════════════════════════════════════════════════════════════
-  loadDashboardData(): void {
+  loadAll(): void {
     this.loading = true;
-
-    Promise.all([
+    Promise.allSettled([
       this.loadStats(),
+      this.loadDeliveryStats(),       // ✅ NOUVEAU
       this.loadRecentOrders(),
       this.loadMonthlyRevenue(),
-      this.loadClientDistribution()
-    ])
-    .then(() => {
-      this.loading = false;
-      console.log('✅ Dashboard chargé avec succès');
-    })
-    .catch((error) => {
-      console.error('❌ Erreur lors du chargement du dashboard :', error);
-      this.loading = false;
-    });
+      this.loadClientDistribution(),
+      this.loadCategoryRevenue(),
+      this.loadTopProducts(),
+      this.loadLowStock(),
+      this.loadCategoryStock(),
+      this.loadTopClients(),
+      this.loadBasketTrend(),
+      this.loadFunnel()
+    ]).then(() => { this.loading = false; });
   }
 
-  // ════════════════════════════════════════════════════════════
-  // CHARGER LES STATISTIQUES PRINCIPALES
-  // ════════════════════════════════════════════════════════════
-  loadStats(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.http.get<any>('http://localhost:5000/api/admin/stats', {
-        withCredentials: true
-      }).subscribe({
-        next: (response) => {
-          console.log('📊 Stats reçues :', response);
-
-          if (response.success && response.stats) {
+  // ── Stats principales ────────────────────────────────────
+  private loadStats(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/stats`, { withCredentials: true }).subscribe({
+        next: r => {
+          if (r.success && r.stats) {
             this.stats = {
-              totalRevenue: response.stats.totalRevenue || 0,
-              revenueChange: response.stats.revenueChange || 0,
-              totalOrders: response.stats.totalOrders || 0,
-              ordersChange: response.stats.ordersChange || 0,
-              activeClients: response.stats.totalUsers || response.stats.activeClients || 0,
-              clientsChange: response.stats.clientsChange || 0,
-              averageBasket: response.stats.averageBasket || 0,
-              basketChange: response.stats.basketChange || 0
+              totalRevenue:  r.stats.totalRevenue  || 0,
+              revenueChange: r.stats.revenueChange || 0,
+              totalOrders:   r.stats.totalOrders   || 0,
+              ordersChange:  r.stats.ordersChange  || 0,
+              activeClients: r.stats.totalUsers || r.stats.activeClients || 0,
+              clientsChange: r.stats.clientsChange || 0,
+              averageBasket: r.stats.averageBasket || 0,
+              basketChange:  r.stats.basketChange  || 0
             };
           }
           resolve();
         },
-        error: (error) => {
-          console.error('❌ Erreur chargement des stats :', error);
-          reject(error);
-        }
+        error: () => resolve()
       });
     });
   }
 
-  // ════════════════════════════════════════════════════════════
-  // CHARGER LES COMMANDES RÉCENTES
-  // ════════════════════════════════════════════════════════════
-  loadRecentOrders(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.http.get<any>('http://localhost:5000/api/orders?limit=5&sort=-createdAt', {
-        withCredentials: true
-      }).subscribe({
-        next: (response) => {
-          console.log('📦 Commandes récentes reçues :', response);
-
-          if (response.success && response.orders && Array.isArray(response.orders)) {
-            this.recentOrders = response.orders.map((order: any) => ({
-              _id: order._id,
-              orderNumber: `#ME-${order._id.slice(-8).toUpperCase()}`,
-              customerName: order.userId?.name || 'Client inconnu',
-              date: this.formatDate(order.createdAt),
-              amount: order.totalAmount || 0,
-              status: this.translateStatus(order.status)
-            }));
-          } else {
-            console.warn('⚠️ Commandes récentes : aucune donnée valide');
-            this.recentOrders = [];
+  // ✅ Stats livraison depuis /api/delivery/stats
+  private loadDeliveryStats(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/delivery/stats`, { withCredentials: true }).subscribe({
+        next: r => {
+          if (r.success && r.stats) {
+            this.deliveryStats = r.stats;
           }
           resolve();
         },
-        error: (error) => {
-          console.error('❌ Erreur commandes récentes :', error);
-          this.recentOrders = [];
-          reject(error);
-        }
+        error: () => resolve()
       });
     });
   }
 
-  // ════════════════════════════════════════════════════════════
-  // CHARGER LE REVENU MENSUEL
-  // ════════════════════════════════════════════════════════════
-  loadMonthlyRevenue(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.http.get<any>('http://localhost:5000/api/admin/revenue/monthly', {
-        withCredentials: true
-      }).subscribe({
-        next: (response) => {
-          console.log('💰 Revenu mensuel reçu :', response);
-
-          if (response.success && response.data && Array.isArray(response.data)) {
-            this.monthlyRevenue = response.data.map((item: any) => ({
-              month: this.formatMonth(item.month),
-              revenue: item.revenue || 0
+  // ── Commandes récentes ────────────────────────────────────
+  private loadRecentOrders(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/delivery?limit=5`, { withCredentials: true }).subscribe({
+        next: r => {
+          if (r.success && Array.isArray(r.orders)) {
+            this.recentOrders = r.orders.map((o: any) => ({
+              _id:           o._id,
+              orderNumber:   `#ME-${o._id.slice(-8).toUpperCase()}`,
+              customerName:  o.userId?.firstName
+                ? `${o.userId.firstName} ${o.userId.lastName || ''}`.trim()
+                : o.userId?.name || 'Client inconnu',
+              date:          this.fmtDate(o.createdAt),
+              amount:        o.totalAmount || 0,
+              status:        this.translateStatus(o.status),
+              hasDelivery:   !!(o.delivery?.carrier),
+              carrier:       o.delivery?.carrier       || '',
+              trackingNumber: o.delivery?.trackingNumber || ''
             }));
-          } else {
-            console.warn('⚠️ Revenu mensuel : données invalides → utilisation des valeurs par défaut');
-            this.monthlyRevenue = this.getDefaultMonthlyRevenue();
           }
           resolve();
         },
-        error: (error) => {
-          console.error('❌ Erreur revenu mensuel :', error);
-          this.monthlyRevenue = this.getDefaultMonthlyRevenue();
-          reject(error);
-        }
+        error: () => resolve()
       });
     });
   }
 
-  // ════════════════════════════════════════════════════════════
-  // CHARGER LA DISTRIBUTION CLIENTS
-  // ════════════════════════════════════════════════════════════
-  loadClientDistribution(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.http.get<any>('http://localhost:5000/api/admin/clients/distribution', {
-        withCredentials: true
-      }).subscribe({
-        next: (response) => {
-          console.log('👥 Distribution clients reçue :', response);
+  // ── Revenu mensuel ────────────────────────────────────────
+  private loadMonthlyRevenue(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/revenue/monthly`, { withCredentials: true }).subscribe({
+        next: r => {
+          if (r.success && Array.isArray(r.data)) {
+            this.monthlyRevenue = r.data.map((d: any) => ({
+              month:   this.fmtMonth(d.month),
+              revenue: d.revenue || 0
+            }));
+          } else {
+            this.monthlyRevenue = this.defaultMonths();
+          }
+          resolve();
+        },
+        error: () => { this.monthlyRevenue = this.defaultMonths(); resolve(); }
+      });
+    });
+  }
 
-          if (response.success && response.distribution) {
+  private loadClientDistribution(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/clients/distribution`, { withCredentials: true }).subscribe({
+        next: r => {
+          if (r.success && r.distribution) {
             this.clientDistribution = {
-              femme: response.distribution.femme || 0,
-              homme: response.distribution.homme || 0,
-              autres: response.distribution.autres || 0
+              femme:  r.distribution.femme  || 0,
+              homme:  r.distribution.homme  || 0,
+              autres: r.distribution.autres || 0
             };
-          } else {
-            console.warn('⚠️ Distribution clients : données invalides → valeurs à zéro');
-            this.clientDistribution = { femme: 0, homme: 0, autres: 0 };
           }
           resolve();
         },
-        error: (error) => {
-          console.error('❌ Erreur distribution clients :', error);
-          this.clientDistribution = { femme: 0, homme: 0, autres: 0 };
-          reject(error);
-        }
+        error: () => resolve()
       });
     });
   }
 
-  // ════════════════════════════════════════════════════════════
-  // UTILITAIRES
-  // ════════════════════════════════════════════════════════════
-  formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
+  private loadCategoryRevenue(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/analytics/revenue-by-category`, { withCredentials: true }).subscribe({
+        next: r => { if (r.success && Array.isArray(r.data)) this.categoryRevenue = r.data; resolve(); },
+        error: () => resolve()
+      });
     });
   }
 
-  formatMonth(monthNumber: number | string): string {
-    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-    const num = typeof monthNumber === 'string' ? parseInt(monthNumber) : monthNumber;
-    return months[num - 1] || '';
+  private loadTopProducts(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/analytics/top-products`, { withCredentials: true }).subscribe({
+        next: r => { if (r.success && Array.isArray(r.data)) this.topProducts = r.data; resolve(); },
+        error: () => resolve()
+      });
+    });
   }
 
-  translateStatus(status: string): string {
-    const statusMap: { [key: string]: string } = {
-      'pending': 'EN ATTENTE',
-      'processing': 'EN COURS',
-      'shipped': 'EXPÉDIÉ',
-      'delivered': 'LIVRÉ',
-      'cancelled': 'ANNULÉ'
-    };
-    return statusMap[status] || status.toUpperCase();
+  loadLowStock(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(
+        `${API}/admin/products/low-stock?threshold=${this.lowStockThreshold}`,
+        { withCredentials: true }
+      ).subscribe({
+        next: r => {
+          if (r.success) {
+            this.lowStockItems   = r.products || [];
+            this.outOfStockCount = r.outOfStock || 0;
+          }
+          resolve();
+        },
+        error: () => resolve()
+      });
+    });
   }
 
-  getStatusClass(status: string): string {
-    const classMap: { [key: string]: string } = {
-      'LIVRÉ': 'status-delivered',
-      'EN COURS': 'status-processing',
-      'EN ATTENTE': 'status-pending',
-      'EXPÉDIÉ': 'status-shipped',
-      'ANNULÉ': 'status-cancelled'
-    };
-    return classMap[status] || 'status-default';
+  private loadCategoryStock(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/analytics/stock-by-category`, { withCredentials: true }).subscribe({
+        next: r => { if (r.success && Array.isArray(r.data)) this.categoryStock = r.data; resolve(); },
+        error: () => resolve()
+      });
+    });
   }
 
-  getChangeClass(change: number): string {
-    return change >= 0 ? 'positive' : 'negative';
+  private loadTopClients(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/analytics/top-clients`, { withCredentials: true }).subscribe({
+        next: r => { if (r.success && Array.isArray(r.data)) this.topClients = r.data; resolve(); },
+        error: () => resolve()
+      });
+    });
   }
 
-  getMaxRevenue(): number {
-    if (this.monthlyRevenue.length === 0) return 1;
-    return Math.max(...this.monthlyRevenue.map(m => m.revenue));
+  private loadBasketTrend(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/analytics/basket-trend`, { withCredentials: true }).subscribe({
+        next: r => { if (r.success && Array.isArray(r.data)) this.basketTrend = r.data; resolve(); },
+        error: () => resolve()
+      });
+    });
   }
 
-  getRevenueHeight(revenue: number): number {
-    const max = this.getMaxRevenue();
-    if (max === 0) return 0;
-    return (revenue / max) * 100;
+  private loadFunnel(): Promise<void> {
+    return new Promise(resolve => {
+      this.http.get<any>(`${API}/admin/analytics/funnel`, { withCredentials: true }).subscribe({
+        next: r => { if (r.success && r.data) this.funnel = r.data; resolve(); },
+        error: () => resolve()
+      });
+    });
   }
 
-  // ════════════════════════════════════════════════════════════
-  // DONNÉES PAR DÉFAUT
-  // ════════════════════════════════════════════════════════════
-  private getDefaultMonthlyRevenue(): MonthlyRevenue[] {
-    return [
-      { month: 'Jan', revenue: 0 },
-      { month: 'Fév', revenue: 0 },
-      { month: 'Mar', revenue: 0 },
-      { month: 'Avr', revenue: 0 },
-      { month: 'Mai', revenue: 0 },
-      { month: 'Jun', revenue: 0 },
-      { month: 'Jul', revenue: 0 },
-      { month: 'Aoû', revenue: 0 },
-      { month: 'Sep', revenue: 0 },
-      { month: 'Oct', revenue: 0 },
-      { month: 'Nov', revenue: 0 },
-      { month: 'Déc', revenue: 0 }
-    ];
+  // ── Helpers graphiques ────────────────────────────────────
+  getMaxRevenue(): number { return Math.max(1, ...this.monthlyRevenue.map(m => m.revenue)); }
+  getRevenueHeight(revenue: number): number { return (revenue / this.getMaxRevenue()) * 100; }
+  getMaxCategoryRevenue(): number { return Math.max(1, ...this.categoryRevenue.map(c => c.revenue)); }
+  getCategoryWidth(revenue: number): number { return (revenue / this.getMaxCategoryRevenue()) * 100; }
+  getMaxTopProduct(): number { return Math.max(1, ...this.topProducts.map(p => p.salesCount)); }
+  getProductWidth(count: number): number { return (count / this.getMaxTopProduct()) * 100; }
+  getMaxCategoryStock(): number { return Math.max(1, ...this.categoryStock.map(c => c.value)); }
+  getCategoryStockWidth(value: number): number { return (value / this.getMaxCategoryStock()) * 100; }
+  getMaxBasket(): number { return Math.max(1, ...this.basketTrend.map(b => b.average)); }
+  getBasketHeight(avg: number): number { return (avg / this.getMaxBasket()) * 100; }
+
+  getDonutDasharray(pct: number): string {
+    const circ = 251.2;
+    return `${(pct / 100) * circ} ${circ}`;
+  }
+  getDonutOffset(prev: number): string {
+    const circ = 251.2;
+    return `-${(prev / 100) * circ}`;
   }
 
-  // ════════════════════════════════════════════════════════════
-  // RAFRAÎCHIR LE DASHBOARD
-  // ════════════════════════════════════════════════════════════
-  refreshDashboard(): void {
-    this.loadDashboardData();
+  getFunnelWidth(value: number): number {
+    const max = Math.max(1, this.funnel.views);
+    return (value / max) * 100;
   }
+  getFunnelPct(value: number): number {
+    const max = Math.max(1, this.funnel.views);
+    return Math.round((value / max) * 100);
+  }
+
+  getStockClass(stock: number): string {
+    if (stock === 0) return 'stock-out';
+    if (stock <= 3)  return 'stock-critical';
+    return 'stock-low';
+  }
+
+  // ── Utilitaires ───────────────────────────────────────────
+  fmtDate(d: string): string {
+    return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  fmtMonth(n: number | string): string {
+    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    return m[(+n) - 1] || '';
+  }
+  translateStatus(s: string): string {
+    return ({ pending:'EN ATTENTE', processing:'EN COURS', shipped:'EXPÉDIÉ', delivered:'LIVRÉ', cancelled:'ANNULÉ' } as any)[s] || s.toUpperCase();
+  }
+  getStatusClass(s: string): string {
+    return ({ 'LIVRÉ':'delivered','EN COURS':'processing','EN ATTENTE':'pending','EXPÉDIÉ':'shipped','ANNULÉ':'cancelled' } as any)[s] || '';
+  }
+  getChangeClass(n: number): string { return n >= 0 ? 'positive' : 'negative'; }
+
+  private defaultMonths(): MonthlyRevenue[] {
+    return ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+      .map(month => ({ month, revenue: 0 }));
+  }
+
+  refreshDashboard(): void { this.loadAll(); }
 }

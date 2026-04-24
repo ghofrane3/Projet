@@ -1,0 +1,378 @@
+<!-- src/app/features/admin/delivery/delivery.component.html -->
+<div class="delivery-page">
+
+  <!-- ══════════════════════ HEADER ══════════════════════ -->
+  <div class="page-header">
+    <div class="header-left">
+      <h1>🚚 Gestion des Livraisons</h1>
+      <p class="subtitle">Suivi et gestion des expéditions</p>
+    </div>
+    <button class="btn btn-refresh" (click)="refresh()" [disabled]="loading">
+      <span [class.spinning]="loading">🔄</span> Actualiser
+    </button>
+  </div>
+
+  <!-- ══════════════════════ ALERTS ══════════════════════ -->
+  <div class="alert alert-success" *ngIf="successMsg">✅ {{ successMsg }}</div>
+  <div class="alert alert-error"   *ngIf="errorMsg">❌ {{ errorMsg }}</div>
+
+  <!-- ══════════════════════ STATS ══════════════════════ -->
+  <div class="stats-grid">
+    <div class="stat-card total">
+      <div class="stat-icon">📦</div>
+      <div class="stat-body">
+        <span class="stat-value">{{ stats.total }}</span>
+        <span class="stat-label">Total commandes</span>
+      </div>
+    </div>
+    <div class="stat-card pending">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-body">
+        <span class="stat-value">{{ stats.pending }}</span>
+        <span class="stat-label">En attente</span>
+      </div>
+    </div>
+    <div class="stat-card processing">
+      <div class="stat-icon">⚙️</div>
+      <div class="stat-body">
+        <span class="stat-value">{{ stats.processing }}</span>
+        <span class="stat-label">En traitement</span>
+      </div>
+    </div>
+    <div class="stat-card shipped">
+      <div class="stat-icon">🚚</div>
+      <div class="stat-body">
+        <span class="stat-value">{{ stats.shipped }}</span>
+        <span class="stat-label">Expédiées</span>
+      </div>
+    </div>
+    <div class="stat-card delivered">
+      <div class="stat-icon">✅</div>
+      <div class="stat-body">
+        <span class="stat-value">{{ stats.delivered }}</span>
+        <span class="stat-label">Livrées</span>
+      </div>
+    </div>
+    <div class="stat-card cancelled">
+      <div class="stat-icon">❌</div>
+      <div class="stat-body">
+        <span class="stat-value">{{ stats.cancelled }}</span>
+        <span class="stat-label">Annulées</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ FILTRES ══════════════════════ -->
+  <div class="filters-bar">
+    <button
+      *ngFor="let f of filters"
+      class="filter-btn"
+      [class.active]="activeFilter === f.value"
+      (click)="setFilter(f.value)">
+      {{ f.icon }} {{ f.label }}
+      <span class="filter-count" *ngIf="f.value === 'all'">{{ stats.total }}</span>
+      <span class="filter-count" *ngIf="f.value === 'pending'">{{ stats.pending }}</span>
+      <span class="filter-count" *ngIf="f.value === 'processing'">{{ stats.processing }}</span>
+      <span class="filter-count" *ngIf="f.value === 'shipped'">{{ stats.shipped }}</span>
+      <span class="filter-count" *ngIf="f.value === 'delivered'">{{ stats.delivered }}</span>
+      <span class="filter-count" *ngIf="f.value === 'cancelled'">{{ stats.cancelled }}</span>
+    </button>
+  </div>
+
+  <!-- ══════════════════════ TABLEAU ══════════════════════ -->
+  <div class="table-container">
+
+    <!-- Loader -->
+    <div class="loader-overlay" *ngIf="loading">
+      <div class="spinner"></div>
+      <p>Chargement des commandes...</p>
+    </div>
+
+    <!-- Empty -->
+    <div class="empty-state" *ngIf="!loading && orders.length === 0">
+      <span class="empty-icon">📭</span>
+      <p>Aucune commande trouvée pour ce filtre</p>
+    </div>
+
+    <!-- Table -->
+    <table class="delivery-table" *ngIf="!loading && orders.length > 0">
+      <thead>
+        <tr>
+          <th>Référence</th>
+          <th>Client</th>
+          <th>Adresse</th>
+          <th>Montant</th>
+          <th>Statut</th>
+          <th>Transporteur</th>
+          <th>Suivi</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let order of orders">
+          <td class="ref-cell">
+            <span class="order-ref">#{{ order._id | slice:0:8 }}...</span>
+          </td>
+          <td class="client-cell">
+            <div class="client-info">
+              <span class="client-name">{{ getClientName(order) }}</span>
+              <span class="client-email">{{ order.userId?.email || '' }}</span>
+            </div>
+          </td>
+          <td class="address-cell">
+            <span *ngIf="order.shippingAddress">
+              {{ order.shippingAddress.city }}, {{ order.shippingAddress.country }}
+            </span>
+          </td>
+          <td class="amount-cell">
+            <strong>{{ order.totalAmount | number:'1.2-2' }} TND</strong>
+          </td>
+          <td class="status-cell">
+            <span class="badge" [ngClass]="getStatusClass(order.status)">
+              {{ getStatusIcon(order.status) }} {{ getStatusLabel(order.status) }}
+            </span>
+          </td>
+          <td class="carrier-cell">
+            <span *ngIf="order.delivery?.carrier" class="carrier-badge">
+              🚛 {{ order.delivery.carrier }}
+            </span>
+            <span *ngIf="!order.delivery?.carrier" class="no-carrier">—</span>
+          </td>
+          <td class="tracking-cell">
+            <span *ngIf="order.delivery?.trackingNumber" class="tracking-num">
+              {{ order.delivery.trackingNumber }}
+            </span>
+            <span *ngIf="!order.delivery?.trackingNumber" class="no-tracking">—</span>
+          </td>
+          <td class="date-cell">
+            {{ order.createdAt | date:'dd/MM/yy HH:mm' }}
+          </td>
+          <td class="actions-cell">
+            <div class="action-buttons">
+              <!-- Détail -->
+              <button class="btn-icon btn-detail" title="Voir détails" (click)="openDetail(order)">
+                👁️
+              </button>
+              <!-- Assigner transporteur -->
+              <button
+                class="btn-icon btn-assign"
+                title="Assigner transporteur"
+                (click)="openAssignModal(order)"
+                *ngIf="canAssign(order)">
+                🚛
+              </button>
+              <!-- Expédier -->
+              <button
+                class="btn-icon btn-ship"
+                title="Marquer expédiée"
+                (click)="shipOrder(order)"
+                [disabled]="actionLoading"
+                *ngIf="canShip(order)">
+                📤
+              </button>
+              <!-- Livrer -->
+              <button
+                class="btn-icon btn-deliver"
+                title="Confirmer livraison"
+                (click)="deliverOrder(order)"
+                [disabled]="actionLoading"
+                *ngIf="canDeliver(order)">
+                ✅
+              </button>
+              <!-- Historique -->
+              <button
+                class="btn-icon btn-history"
+                title="Ajouter étape suivi"
+                (click)="openHistoryModal(order)"
+                *ngIf="canAddHistory(order)">
+                📍
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════ PAGINATION ══════════════════════ -->
+  <div class="pagination" *ngIf="totalPages > 1">
+    <button class="page-btn" (click)="goToPage(currentPage - 1)" [disabled]="currentPage === 1">
+      ◀
+    </button>
+    <button
+      *ngFor="let p of getPagesArray()"
+      class="page-btn"
+      [class.active]="p === currentPage"
+      (click)="goToPage(p)">
+      {{ p }}
+    </button>
+    <button class="page-btn" (click)="goToPage(currentPage + 1)" [disabled]="currentPage === totalPages">
+      ▶
+    </button>
+    <span class="page-info">{{ totalOrders }} commandes — Page {{ currentPage }}/{{ totalPages }}</span>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL DÉTAIL
+══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="showDetailModal" (click)="closeDetail()">
+  <div class="modal-box modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>📦 Détail commande #{{ selectedOrder?._id | slice:0:8 }}</h2>
+      <button class="modal-close" (click)="closeDetail()">✕</button>
+    </div>
+    <div class="modal-body" *ngIf="selectedOrder">
+
+      <!-- Infos commande -->
+      <div class="detail-grid">
+        <div class="detail-section">
+          <h3>👤 Client</h3>
+          <p><strong>Nom :</strong> {{ getClientName(selectedOrder) }}</p>
+          <p><strong>Email :</strong> {{ selectedOrder.userId?.email }}</p>
+        </div>
+        <div class="detail-section">
+          <h3>📍 Adresse de livraison</h3>
+          <p>{{ selectedOrder.shippingAddress?.street }}</p>
+          <p>{{ selectedOrder.shippingAddress?.city }} {{ selectedOrder.shippingAddress?.zipCode }}</p>
+          <p>{{ selectedOrder.shippingAddress?.country }}</p>
+        </div>
+        <div class="detail-section">
+          <h3>💳 Commande</h3>
+          <p><strong>Statut :</strong>
+            <span class="badge" [ngClass]="getStatusClass(selectedOrder.status)">
+              {{ getStatusLabel(selectedOrder.status) }}
+            </span>
+          </p>
+          <p><strong>Montant :</strong> {{ selectedOrder.totalAmount | number:'1.2-2' }} TND</p>
+          <p><strong>Date :</strong> {{ selectedOrder.createdAt | date:'dd/MM/yyyy HH:mm' }}</p>
+        </div>
+        <div class="detail-section" *ngIf="selectedOrder.delivery?.carrier">
+          <h3>🚚 Livraison</h3>
+          <p><strong>Transporteur :</strong> {{ selectedOrder.delivery.carrier }}</p>
+          <p><strong>Suivi :</strong> {{ selectedOrder.delivery.trackingNumber }}</p>
+          <p *ngIf="selectedOrder.delivery.estimatedDate">
+            <strong>Livraison estimée :</strong> {{ selectedOrder.delivery.estimatedDate | date:'dd/MM/yyyy' }}
+          </p>
+          <p *ngIf="selectedOrder.delivery.notes">
+            <strong>Notes :</strong> {{ selectedOrder.delivery.notes }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Produits -->
+      <div class="products-section">
+        <h3>🛍️ Produits commandés</h3>
+        <div class="product-row" *ngFor="let item of selectedOrder.products">
+          <img
+            [src]="item.productId?.images?.[0]?.url || 'assets/placeholder.jpg'"
+            [alt]="item.productId?.name"
+            class="product-thumb">
+          <div class="product-info">
+            <span class="product-name">{{ item.productId?.name || 'Produit supprimé' }}</span>
+            <span class="product-qty">Qté : {{ item.quantity }}</span>
+          </div>
+          <span class="product-price">{{ item.price * item.quantity | number:'1.2-2' }} TND</span>
+        </div>
+      </div>
+
+      <!-- Historique livraison -->
+      <div class="history-section" *ngIf="selectedOrder.delivery?.history?.length">
+        <h3>📍 Historique de suivi</h3>
+        <div class="timeline">
+          <div class="timeline-item" *ngFor="let h of selectedOrder.delivery.history">
+            <div class="timeline-dot"></div>
+            <div class="timeline-content">
+              <span class="timeline-status">{{ h.status }}</span>
+              <span class="timeline-msg">{{ h.message }}</span>
+              <span class="timeline-loc" *ngIf="h.location">📍 {{ h.location }}</span>
+              <span class="timeline-date">{{ h.timestamp | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL ASSIGNER TRANSPORTEUR
+══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="showAssignModal" (click)="closeAssignModal()">
+  <div class="modal-box" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>🚛 Assigner un transporteur</h2>
+      <button class="modal-close" (click)="closeAssignModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Transporteur *</label>
+        <select [(ngModel)]="assignForm.carrier" class="form-control">
+          <option value="">-- Choisir --</option>
+          <option *ngFor="let c of carriers" [value]="c">{{ c }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Numéro de suivi *</label>
+        <input type="text" [(ngModel)]="assignForm.trackingNumber"
+               class="form-control" placeholder="ex: DHL1234567890">
+      </div>
+      <div class="form-group">
+        <label>Date de livraison estimée</label>
+        <input type="date" [(ngModel)]="assignForm.estimatedDate" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Notes internes</label>
+        <textarea [(ngModel)]="assignForm.notes" class="form-control"
+                  rows="3" placeholder="Informations supplémentaires..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeAssignModal()">Annuler</button>
+      <button class="btn btn-primary" (click)="submitAssign()" [disabled]="actionLoading">
+        <span *ngIf="actionLoading">⏳ Enregistrement...</span>
+        <span *ngIf="!actionLoading">💾 Enregistrer</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL AJOUTER ÉTAPE HISTORIQUE
+══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="showHistoryModal" (click)="closeHistoryModal()">
+  <div class="modal-box" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>📍 Ajouter une étape de suivi</h2>
+      <button class="modal-close" (click)="closeHistoryModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Type d'étape *</label>
+        <select [(ngModel)]="historyForm.status" class="form-control">
+          <option *ngFor="let s of historyStatuses" [value]="s.value">{{ s.label }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Message *</label>
+        <input type="text" [(ngModel)]="historyForm.message"
+               class="form-control" placeholder="ex: Colis arrivé au centre de tri Tunis">
+      </div>
+      <div class="form-group">
+        <label>Localisation</label>
+        <input type="text" [(ngModel)]="historyForm.location"
+               class="form-control" placeholder="ex: Tunis, Sfax...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeHistoryModal()">Annuler</button>
+      <button class="btn btn-primary" (click)="submitHistory()" [disabled]="actionLoading">
+        <span *ngIf="actionLoading">⏳ Enregistrement...</span>
+        <span *ngIf="!actionLoading">➕ Ajouter</span>
+      </button>
+    </div>
+  </div>
+</div>

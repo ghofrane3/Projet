@@ -1,3 +1,4 @@
+<!-- src/app/components/account/account.component.html -->
 <div class="account-page">
 
   <!-- Hero Header -->
@@ -8,10 +9,8 @@
 
   <div class="account-container">
 
-    <!-- Sidebar -->
+    <!-- ══════════════════════ SIDEBAR ══════════════════════ -->
     <aside class="account-sidebar">
-
-      <!-- User Card -->
       <div class="user-card">
         <div class="user-avatar">{{ getInitials() }}</div>
         <div class="user-info">
@@ -20,25 +19,15 @@
         </div>
       </div>
 
-      <!-- Navigation -->
       <nav class="account-nav">
-        <button
-          class="nav-item"
-          [class.active]="activeTab === 'profile'"
-          (click)="setActiveTab('profile')"
-        >
+        <button class="nav-item" [class.active]="activeTab === 'profile'" (click)="setActiveTab('profile')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
           </svg>
           <span>Mon Profil</span>
         </button>
 
-        <button
-          class="nav-item"
-          [class.active]="activeTab === 'orders'"
-          (click)="setActiveTab('orders')"
-        >
+        <button class="nav-item" [class.active]="activeTab === 'orders'" (click)="setActiveTab('orders')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
             <line x1="3" y1="6" x2="21" y2="6"/>
@@ -48,11 +37,7 @@
           <span class="badge" *ngIf="stats.totalOrders > 0">{{ stats.totalOrders }}</span>
         </button>
 
-        <button
-          class="nav-item"
-          [class.active]="activeTab === 'wishlist'"
-          (click)="setActiveTab('wishlist')"
-        >
+        <button class="nav-item" [class.active]="activeTab === 'wishlist'" (click)="setActiveTab('wishlist')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
@@ -60,11 +45,7 @@
           <span class="badge" *ngIf="stats.wishlistCount > 0">{{ stats.wishlistCount }}</span>
         </button>
 
-        <button
-          class="nav-item"
-          [class.active]="activeTab === 'settings'"
-          (click)="setActiveTab('settings')"
-        >
+        <button class="nav-item" [class.active]="activeTab === 'settings'" (click)="setActiveTab('settings')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <circle cx="12" cy="12" r="3"/>
             <path d="M12 1v6m0 6v6m-6-6h6m6 0h6"/>
@@ -73,7 +54,6 @@
         </button>
       </nav>
 
-      <!-- Stats -->
       <div class="account-stats">
         <div class="stat-item">
           <div class="stat-icon">🛍️</div>
@@ -91,39 +71,26 @@
         </div>
       </div>
 
-      <!-- Actions -->
       <div class="sidebar-actions">
-        <button class="btn-link" routerLink="/">
-          ← Retour à la boutique
-        </button>
-        <button class="btn-logout" (click)="logout()">
-          Déconnexion
-        </button>
+        <button class="btn-link" routerLink="/">← Retour à la boutique</button>
+        <button class="btn-logout" (click)="logout()">Déconnexion</button>
       </div>
-
     </aside>
 
-    <!-- Content -->
+    <!-- ══════════════════════ CONTENT ══════════════════════ -->
     <main class="account-content">
 
-      <!-- Messages -->
+      <!-- Alerts -->
       <div class="alert alert-success" *ngIf="success">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
         <span>{{ success }}</span>
       </div>
-
       <div class="alert alert-error" *ngIf="error">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="15" y1="9" x2="9" y2="15"/>
-          <line x1="9" y1="9" x2="15" y2="15"/>
-        </svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         <span>{{ error }}</span>
       </div>
 
-      <!-- MON PROFIL -->
+      <!-- ══════════ MON PROFIL ══════════ -->
       <div class="content-section" *ngIf="activeTab === 'profile'">
         <div class="section-header">
           <h2 class="section-title">Mon Profil</h2>
@@ -132,7 +99,6 @@
             <span *ngIf="saving">Enregistrement...</span>
           </button>
         </div>
-
         <form (ngSubmit)="onProfileSubmit()" class="account-form">
           <div class="form-row">
             <div class="form-group">
@@ -144,22 +110,18 @@
               <input type="text" [(ngModel)]="profileForm.lastName" name="lastName">
             </div>
           </div>
-
           <div class="form-group">
             <label>EMAIL</label>
             <input type="email" [(ngModel)]="profileForm.email" name="email" disabled>
           </div>
-
           <div class="form-group">
             <label>TÉLÉPHONE</label>
             <input type="tel" [(ngModel)]="profileForm.phone" name="phone" placeholder="06 12 34 56 78">
           </div>
-
           <div class="form-group">
             <label>ADRESSE</label>
-            <input type="text" [(ngModel)]="profileForm.address" name="address" placeholder="Votre adresse complète">
+            <input type="text" [(ngModel)]="profileForm.address" name="address">
           </div>
-
           <div class="form-row">
             <div class="form-group">
               <label>VILLE</label>
@@ -173,30 +135,179 @@
         </form>
       </div>
 
-      <!-- MES COMMANDES -->
+      <!-- ══════════ MES COMMANDES ══════════ -->
       <div class="content-section" *ngIf="activeTab === 'orders'">
         <h2 class="section-title">Mes Commandes</h2>
 
-        <div class="orders-list" *ngIf="orders.length > 0">
+        <div *ngIf="loading" class="loading-orders">
+          <div class="mini-spinner"></div> Chargement...
+        </div>
+
+        <!-- Liste commandes -->
+        <div class="orders-list" *ngIf="!loading && orders.length > 0">
           <div class="order-card" *ngFor="let order of orders">
+
+            <!-- En-tête commande -->
             <div class="order-header">
               <div class="order-number">{{ order.orderNumber }}</div>
               <span class="order-status" [ngClass]="getStatusClass(order.status)">
                 {{ order.status }}
               </span>
             </div>
-            <div class="order-info">
-              <div class="order-date">{{ order.date }}</div>
-              <div class="order-items">{{ order.items }} article(s)</div>
-              <div class="order-total">{{ order.total }} DT</div>
-            </div>
-            <button class="btn btn-outline btn-sm" [routerLink]="['/cart/order', order._id]">
-              Voir les détails
-            </button>
-          </div>
-        </div>
 
-        <div class="empty-state" *ngIf="orders.length === 0 && !loading">
+            <!-- Infos base -->
+            <div class="order-info">
+              <div class="order-date">📅 {{ order.date }}</div>
+              <div class="order-items">📦 {{ order.items }} article(s)</div>
+              <div class="order-total">💰 {{ order.total | number:'1.2-2' }} DT</div>
+            </div>
+
+            <!-- ✅ Résumé livraison rapide -->
+            <div class="order-delivery-summary" *ngIf="order.delivery">
+              <span class="delivery-badge">
+                🚚 {{ order.delivery.carrier }}
+                <span *ngIf="order.delivery.trackingNumber"> · {{ order.delivery.trackingNumber }}</span>
+              </span>
+              <span class="delivery-eta" *ngIf="order.delivery.estimatedDate">
+                📅 Livraison estimée : {{ formatDateOnly(order.delivery.estimatedDate) }}
+              </span>
+            </div>
+
+            <!-- Pas encore de livraison assignée -->
+            <div class="order-delivery-pending"
+                 *ngIf="!order.delivery && order.statusRaw !== 'cancelled' && order.statusRaw !== 'delivered'">
+              <span>⏳ Livraison en cours d'assignation par notre équipe</span>
+            </div>
+
+            <!-- Actions -->
+            <div class="order-actions">
+              <!-- ✅ Bouton suivi livraison -->
+              <button
+                class="btn btn-track"
+                (click)="openTracking(order)"
+                *ngIf="order.statusRaw !== 'cancelled'"
+                [class.active]="selectedOrderForTracking?._id === order._id">
+                <span *ngIf="selectedOrderForTracking?._id !== order._id">🔍 Suivre la livraison</span>
+                <span *ngIf="selectedOrderForTracking?._id === order._id">✕ Fermer le suivi</span>
+              </button>
+              <button class="btn btn-outline btn-sm" [routerLink]="['/cart/order', order._id]">
+                Détails
+              </button>
+            </div>
+
+            <!-- ════════════════════════════════════════════
+                 ✅ PANNEAU SUIVI DE LIVRAISON (inline)
+            ════════════════════════════════════════════ -->
+            <div class="tracking-panel" *ngIf="selectedOrderForTracking?._id === order._id">
+
+              <!-- Loader -->
+              <div class="tracking-loader" *ngIf="trackingLoading">
+                <div class="mini-spinner"></div> Chargement du suivi...
+              </div>
+
+              <div *ngIf="!trackingLoading">
+
+                <!-- Commande annulée -->
+                <div class="tracking-cancelled" *ngIf="isCancelled()">
+                  <span class="cancel-icon">❌</span>
+                  <p>Cette commande a été annulée.</p>
+                </div>
+
+                <div *ngIf="!isCancelled()">
+
+                  <!-- ── Barre de progression ── -->
+                  <div class="tracking-progress">
+                    <div
+                      *ngFor="let step of getTrackingSteps(); let i = index; let last = last"
+                      class="progress-step"
+                      [class.done]="step.done"
+                      [class.active]="step.active">
+
+                      <div class="step-circle">
+                        <span *ngIf="step.done && !step.active">✓</span>
+                        <span *ngIf="step.active">{{ step.icon }}</span>
+                        <span *ngIf="!step.done">{{ i + 1 }}</span>
+                      </div>
+                      <div class="step-label">{{ step.label }}</div>
+                      <div class="step-line" *ngIf="!last"></div>
+                    </div>
+                  </div>
+
+                  <!-- ── Infos transporteur ── -->
+                  <div class="carrier-info" *ngIf="selectedOrderForTracking?.delivery">
+                    <div class="carrier-info__grid">
+                      <div class="ci-item">
+                        <span class="ci-label">Transporteur</span>
+                        <span class="ci-value">🚛 {{ selectedOrderForTracking!.delivery!.carrier }}</span>
+                      </div>
+                      <div class="ci-item" *ngIf="selectedOrderForTracking!.delivery!.trackingNumber">
+                        <span class="ci-label">N° de suivi</span>
+                        <span class="ci-value mono">{{ selectedOrderForTracking!.delivery!.trackingNumber }}</span>
+                      </div>
+                      <div class="ci-item" *ngIf="selectedOrderForTracking!.delivery!.estimatedDate">
+                        <span class="ci-label">Livraison estimée</span>
+                        <span class="ci-value">📅 {{ formatDateOnly(selectedOrderForTracking!.delivery!.estimatedDate) }}</span>
+                      </div>
+                      <div class="ci-item" *ngIf="selectedOrderForTracking!.delivery!.shippedAt">
+                        <span class="ci-label">Date d'expédition</span>
+                        <span class="ci-value">{{ formatDateShort(selectedOrderForTracking!.delivery!.shippedAt) }}</span>
+                      </div>
+                      <div class="ci-item" *ngIf="selectedOrderForTracking!.delivery!.deliveredAt">
+                        <span class="ci-label">Date de livraison</span>
+                        <span class="ci-value success-text">✅ {{ formatDateShort(selectedOrderForTracking!.delivery!.deliveredAt) }}</span>
+                      </div>
+                      <div class="ci-item" *ngIf="selectedOrderForTracking!.delivery!.notes">
+                        <span class="ci-label">Note</span>
+                        <span class="ci-value">{{ selectedOrderForTracking!.delivery!.notes }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Pas encore de transporteur assigné -->
+                  <div class="no-carrier-msg" *ngIf="!selectedOrderForTracking?.delivery">
+                    <span class="info-icon">ℹ️</span>
+                    <div>
+                      <strong>Livraison en préparation</strong>
+                      <p>Un transporteur sera assigné à votre commande très prochainement. Vous recevrez un email dès l'expédition.</p>
+                    </div>
+                  </div>
+
+                  <!-- ── Historique / Timeline ── -->
+                  <div class="tracking-history"
+                       *ngIf="selectedOrderForTracking?.delivery?.history?.length">
+                    <h4 class="history-title">📍 Historique de suivi</h4>
+                    <div class="history-timeline">
+                      <div class="history-item"
+                           *ngFor="let h of selectedOrderForTracking!.delivery!.history">
+                        <div class="history-dot"></div>
+                        <div class="history-content">
+                          <div class="history-status">{{ getHistoryStatusLabel(h.status) }}</div>
+                          <div class="history-message">{{ h.message }}</div>
+                          <div class="history-meta">
+                            <span *ngIf="h.location" class="history-location">📍 {{ h.location }}</span>
+                            <span class="history-date">{{ formatDateShort(h.timestamp) }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ── Adresse de livraison ── -->
+                  <div class="delivery-address" *ngIf="order.shippingAddress">
+                    <h4>📦 Adresse de livraison</h4>
+                    <p>{{ order.shippingAddress.street }}</p>
+                    <p>{{ order.shippingAddress.zipCode }} {{ order.shippingAddress.city }}</p>
+                    <p>{{ order.shippingAddress.country }}</p>
+                  </div>
+
+                </div><!-- /!cancelled -->
+              </div><!-- /!trackingLoading -->
+            </div><!-- /tracking-panel -->
+
+          </div><!-- /order-card -->
+        </div><!-- /orders-list -->
+
+        <div class="empty-state" *ngIf="!loading && orders.length === 0">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
             <line x1="3" y1="6" x2="21" y2="6"/>
@@ -204,85 +315,61 @@
           </svg>
           <h3>Aucune commande</h3>
           <p>Vous n'avez pas encore passé de commande</p>
-          <button class="btn btn-primary" routerLink="/products">
-            Explorer la boutique
-          </button>
+          <button class="btn btn-primary" routerLink="/products">Explorer la boutique</button>
         </div>
-      </div>
+      </div><!-- /orders -->
 
-      <!-- LISTE DE SOUHAITS -->
+      <!-- ══════════ WISHLIST ══════════ -->
       <div class="content-section" *ngIf="activeTab === 'wishlist'">
         <div class="section-header">
           <h2 class="section-title">Ma Liste de Souhaits</h2>
-          <span class="wishlist-count" *ngIf="wishlist.length > 0">
-            {{ wishlist.length }} article(s)
-          </span>
+          <span class="wishlist-count" *ngIf="wishlist.length > 0">{{ wishlist.length }} article(s)</span>
         </div>
 
-        <!-- État vide -->
         <div class="empty-state" *ngIf="wishlist.length === 0">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
           <h3>Liste vide</h3>
           <p>Ajoutez des articles à vos favoris</p>
-          <button class="btn btn-primary" routerLink="/products">
-            Découvrir nos produits
-          </button>
+          <button class="btn btn-primary" routerLink="/products">Découvrir nos produits</button>
         </div>
 
-        <!-- Liste des produits -->
         <div class="wishlist-grid" *ngIf="wishlist.length > 0">
           <div *ngFor="let product of wishlist; trackBy: trackByProductId" class="wishlist-item">
-
             <div class="wishlist-image">
               <img [src]="getProductMainImage(product)" [alt]="product.name" />
-              <button class="remove-wish-btn" (click)="removeFromWishlist(product)" title="Retirer des favoris">
-                ✕
-              </button>
+              <button class="remove-wish-btn" (click)="removeFromWishlist(product)" title="Retirer des favoris">✕</button>
             </div>
-
             <div class="wishlist-details">
               <h3 class="product-name">{{ product.name }}</h3>
               <p class="product-category">{{ product.category }}</p>
-
-              <div class="product-price">
-                {{ product.price | number:'1.2-2' }} DT
-              </div>
-
+              <div class="product-price">{{ product.price | number:'1.2-2' }} DT</div>
               <div class="wishlist-actions">
-                <button class="btn btn-primary btn-sm" (click)="addToCart(product)">
-                  Ajouter au panier
-                </button>
-                <button class="btn btn-outline btn-sm" (click)="removeFromWishlist(product)">
-                  Retirer
-                </button>
+                <button class="btn btn-primary btn-sm" (click)="addToCart(product)">Ajouter au panier</button>
+                <button class="btn btn-outline btn-sm" (click)="removeFromWishlist(product)">Retirer</button>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- PARAMÈTRES -->
+      <!-- ══════════ PARAMÈTRES ══════════ -->
       <div class="content-section" *ngIf="activeTab === 'settings'">
         <h2 class="section-title">Sécurité</h2>
-
         <form (ngSubmit)="onSecuritySubmit()" class="account-form">
           <div class="form-group">
             <label>MOT DE PASSE ACTUEL</label>
             <input type="password" [(ngModel)]="securityForm.currentPassword" name="currentPassword" required>
           </div>
-
           <div class="form-group">
             <label>NOUVEAU MOT DE PASSE</label>
             <input type="password" [(ngModel)]="securityForm.newPassword" name="newPassword" required>
           </div>
-
           <div class="form-group">
             <label>CONFIRMER LE MOT DE PASSE</label>
             <input type="password" [(ngModel)]="securityForm.confirmPassword" name="confirmPassword" required>
           </div>
-
           <button type="submit" class="btn btn-primary" [disabled]="saving">
             <span *ngIf="!saving">Changer le mot de passe</span>
             <span *ngIf="saving">Enregistrement...</span>
@@ -292,18 +379,14 @@
         <div class="preferences-section">
           <h3 class="subsection-title">Préférences de notifications</h3>
           <label class="checkbox-label">
-            <input type="checkbox" checked>
-            <span>Recevoir les offres par email</span>
+            <input type="checkbox" checked><span>Recevoir les offres par email</span>
           </label>
           <label class="checkbox-label">
-            <input type="checkbox">
-            <span>Notifications de commande</span>
+            <input type="checkbox"><span>Notifications de commande</span>
           </label>
         </div>
       </div>
 
     </main>
-
   </div>
-
 </div>

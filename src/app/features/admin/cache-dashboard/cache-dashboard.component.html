@@ -1,486 +1,719 @@
+<!-- ══════════════════════════════════════════════════════════════════════
+     cache-dashboard.component.html  –  VERSION AMÉLIORÉE v2
+     Nouveautés : alertes intelligentes, timeline, dry-run, compression
+     ══════════════════════════════════════════════════════════════════════ -->
+
 <div class="cache-dashboard">
 
-  <!-- ══════════════════════════════════════════════════════════
-       HEADER
-       ══════════════════════════════════════════════════════════ -->
+  <!-- ── BANNIÈRE ALERTES ACTIVES ───────────────────────────────────────── -->
+  <div class="alert-banner-container" *ngIf="activeAlerts.length > 0">
+    <div *ngFor="let alert of activeAlerts"
+         class="alert-banner"
+         [class]="'alert-banner--' + alert.severity"
+         [@fadeIn]>
+      <div class="alert-banner__icon">
+        <span *ngIf="alert.severity === 'urgent'">🚨</span>
+        <span *ngIf="alert.severity === 'critical'">🔴</span>
+        <span *ngIf="alert.severity === 'warning'">⚠️</span>
+        <span *ngIf="alert.severity === 'info'">ℹ️</span>
+      </div>
+      <div class="alert-banner__content">
+        <strong>{{ alert.title }}</strong>
+        <span>{{ alert.message }}</span>
+      </div>
+      <div class="alert-banner__meta">
+        <span class="alert-time">{{ alert.timestamp | date:'HH:mm:ss' }}</span>
+        <button class="alert-dismiss" (click)="dismissAlert(alert.id)">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EN-TÊTE ───────────────────────────────────────────────────────── -->
   <div class="dashboard-header">
-    <h1 class="title">Gestion du Cache Redis</h1>
-    <div class="header-actions">
-      <!-- Indicateur statut WebSocket (NOUVEAU) -->
-      <div class="ws-indicator" [ngClass]="'ws-' + wsStatus" title="WebSocket {{ wsStatus }}">
+    <div class="header-left">
+      <h1>🗄️ Cache Dashboard</h1>
+      <div class="ws-badge" [class.ws-badge--connected]="wsConnected" [class.ws-badge--error]="wsStatus === 'error'">
         <span class="ws-dot"></span>
-        <span class="ws-label">WS {{ wsStatus }}</span>
+        {{ wsConnected ? 'Temps réel' : wsStatus === 'connecting' ? 'Connexion…' : 'Déconnecté' }}
       </div>
-
-      <button class="btn btn-refresh" [class.active]="autoRefresh" (click)="toggleAutoRefresh()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="1 4 1 10 7 10"/>
-          <polyline points="23 20 23 14 17 14"/>
-          <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-        </svg>
-        {{ autoRefresh ? 'Auto ON' : 'Auto OFF' }}
+      <div class="alert-badge" *ngIf="criticalAlertsCount > 0" title="Alertes critiques actives">
+        🚨 {{ criticalAlertsCount }}
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="last-refresh" *ngIf="lastRefresh">
+        Rafraîchi {{ lastRefresh | date:'HH:mm:ss' }}
+      </span>
+      <button class="btn btn--sm" [class.btn--active]="autoRefresh" (click)="toggleAutoRefresh()">
+        {{ autoRefresh ? '⏸ Auto' : '▶ Auto' }}
       </button>
-      <button class="btn btn-primary" (click)="loadStats()">Actualiser</button>
+      <button class="btn btn--sm btn--primary" (click)="loadStats(); loadRedisInfo(); loadMetrics()">
+        🔄 Rafraîchir
+      </button>
     </div>
   </div>
 
-  <!-- Message flash -->
-  <div class="alert" [ngClass]="'alert-' + messageType" *ngIf="message">{{ message }}</div>
-
-  <!-- Confirmation inline -->
-  <div class="confirm-banner" *ngIf="pendingAction">
-    <div class="confirm-banner__icon">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-    </div>
-    <div class="confirm-banner__text">{{ pendingAction.label }}</div>
-    <div class="confirm-banner__actions">
-      <button class="cbtn cbtn--ok"     (click)="confirmYes()">Oui, confirmer</button>
-      <button class="cbtn cbtn--cancel" (click)="confirmNo()">Annuler</button>
-    </div>
+  <!-- ── MESSAGE FLASH ─────────────────────────────────────────────────── -->
+  <div class="flash-message" *ngIf="message"
+       [class.flash-message--success]="messageType === 'success'"
+       [class.flash-message--error]="messageType === 'error'">
+    {{ message }}
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════
-       PANEL ÉVICTION TEMPS RÉEL (NOUVEAU — WebSocket)
-       ══════════════════════════════════════════════════════════ -->
-  <div class="eviction-panel">
-    <div class="eviction-panel__header">
-      <div class="eviction-panel__title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-        </svg>
-        Évictions Temps Réel
-        <!-- Badge compteur -->
-        <span class="eviction-count-badge" *ngIf="evictionNotifs.length > 0">
-          {{ evictionNotifs.length }}
-        </span>
-        <!-- Indicateur WS en direct -->
-        <span class="eviction-live-tag" *ngIf="wsConnected">
-          <span class="pulse-dot"></span> LIVE
-        </span>
-        <span class="eviction-offline-tag" *ngIf="!wsConnected">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
-          </svg>
-          HORS LIGNE
-        </span>
-      </div>
-      <div class="eviction-panel__actions">
-        <button class="btn-toggle-panel" (click)="showEvictionPanel = !showEvictionPanel">
-          {{ showEvictionPanel ? '▲ Réduire' : '▼ Développer' }}
-        </button>
-        <button class="btn-clear-notifs" (click)="clearEvictionNotifs()" *ngIf="evictionNotifs.length > 0">
-          Effacer tout
-        </button>
-      </div>
-    </div>
-
-    <div class="eviction-panel__body" *ngIf="showEvictionPanel">
-
-      <!-- Vide -->
-      <div class="eviction-empty" *ngIf="evictionNotifs.length === 0">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-        </svg>
-        <div>
-          <strong>En attente d'évictions…</strong>
-          <p>Les suppressions de clés (manuelles, TTL expirés, patterns) apparaîtront ici en temps réel via WebSocket.</p>
-          <small *ngIf="!wsConnected" class="ws-hint">
-            ⚠️ WebSocket non connecté — vérifiez que le serveur tourne sur le port 5000.
-          </small>
-        </div>
-      </div>
-
-      <!-- Liste des notifications -->
-      <div class="eviction-list" *ngIf="evictionNotifs.length > 0">
-        <div
-          class="eviction-item"
-          [class.eviction-item--new]="notif.isNew"
-          [class.eviction-item--ttl]="notif.reason === 'ttl_expired'"
-          [class.eviction-item--manual]="notif.reason === 'manual_delete'"
-          [class.eviction-item--batch]="notif.reason.includes('batch') || notif.reason.includes('pattern') || notif.reason.includes('flush')"
-          *ngFor="let notif of evictionNotifs"
-        >
-          <!-- Icône selon raison -->
-          <div class="eviction-item__icon">
-            <span *ngIf="notif.reason === 'manual_delete'">🗑️</span>
-            <span *ngIf="notif.reason === 'ttl_expired'">⏱️</span>
-            <span *ngIf="notif.reason.includes('pattern')">🔍</span>
-            <span *ngIf="notif.reason.includes('flush')">🧹</span>
-            <span *ngIf="notif.reason.includes('batch') && !notif.reason.includes('flush')">📦</span>
-            <span *ngIf="!['manual_delete','ttl_expired'].includes(notif.reason) && !notif.reason.includes('pattern') && !notif.reason.includes('batch') && !notif.reason.includes('flush')">⚡</span>
-          </div>
-
-          <!-- Contenu -->
-          <div class="eviction-item__content">
-            <div class="eviction-item__key">
-              <code>{{ notif.key.length > 55 ? (notif.key | slice:0:55) + '…' : notif.key }}</code>
-              <span class="eviction-item__level">{{ notif.level }}</span>
-            </div>
-            <div class="eviction-item__meta">
-              <span class="eviction-item__reason">{{ reasonLabel(notif.reason) }}</span>
-              <span class="eviction-item__time">{{ notif.timestamp | date:'HH:mm:ss' }}</span>
-            </div>
-          </div>
-
-          <!-- Bouton supprimer -->
-          <button class="eviction-item__remove" (click)="removeEvictionNotif(notif.id)">✕</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <!-- FIN PANEL ÉVICTION -->
-
-  <!-- ══════════════════════════════════════════════════════════
-       HISTORIQUE DES ACTIONS ADMIN
-       ══════════════════════════════════════════════════════════ -->
-  <div class="action-history-section">
-    <div class="action-history-header">
-      <h2 class="section-title">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        Historique des actions
-        <span class="log-count-badge" *ngIf="actionLogs.length > 0">{{ actionLogs.length }}</span>
-      </h2>
-      <button class="btn-clear-logs" (click)="clearLogs()" *ngIf="actionLogs.length > 0">Effacer</button>
-    </div>
-    <div class="history-empty" *ngIf="actionLogs.length === 0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      <span>Aucune action effectuée — les suppressions et resets apparaîtront ici</span>
-    </div>
-    <div class="history-table-wrap" *ngIf="actionLogs.length > 0">
-      <table class="history-table">
-        <thead>
-          <tr><th>#</th><th>Date &amp; Heure</th><th>Action</th><th>Clé / Cible</th><th>Statut</th><th>Détail</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let log of actionLogs" [class.log-error]="log.status === 'Erreur'">
-            <td class="log-id">#{{ log.id }}</td>
-            <td class="log-date">{{ log.date | date:'dd/MM à HH:mm:ss' }}</td>
-            <td class="log-action">{{ log.action }}</td>
-            <td class="log-key"><code>{{ log.key }}</code></td>
-            <td><span class="status-pill" [class.status-ok]="log.status === 'Succès'" [class.status-err]="log.status === 'Erreur'">{{ log.status }}</span></td>
-            <td class="log-msg">
-              <span *ngIf="log.status === 'Succès' && !log.message" class="regen-info">Sera régénéré à la prochaine requête</span>
-              <span *ngIf="log.message" class="error-detail">{{ log.message }}</span>
-            </td>
-            <td><button class="btn-remove-log" (click)="removeLog(log.id)">✕</button></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Stats Cards -->
-  <div class="stats-grid" *ngIf="stats && redisInfo">
-    <div class="stat-card">
-      <div class="stat-icon">🔴</div>
-      <div class="stat-content">
-        <div class="stat-label">Redis Status</div>
-        <div class="stat-value">{{ redisInfo.uptimeFormatted }}</div>
-        <div class="stat-meta">Uptime</div>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">🔑</div>
-      <div class="stat-content">
-        <div class="stat-label">Total Clés</div>
-        <div class="stat-value">{{ stats.totalKeys }}</div>
-        <div class="stat-meta">En cache</div>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">💾</div>
-      <div class="stat-content">
-        <div class="stat-label">Mémoire</div>
-        <div class="stat-value">{{ stats.totalSizeMB }} MB</div>
-        <div class="stat-meta">{{ stats.totalSizeKB }} KB</div>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">📊</div>
-      <div class="stat-content">
-        <div class="stat-label">Redis Memory</div>
-        <div class="stat-value">{{ redisInfo.memory }}</div>
-        <div class="stat-meta">Total</div>
-      </div>
-    </div>
-    <div class="stat-card" *ngIf="metrics?.strategy">
-      <div class="stat-icon">⚡</div>
-      <div class="stat-content">
-        <div class="stat-label">Stratégie</div>
-        <div class="stat-value">{{ metrics?.strategy }}</div>
-        <div class="stat-meta">{{ metrics?.strategySize ?? 0 }} clés suivies</div>
-      </div>
-    </div>
-    <!-- NOUVEAU : carte WS connexion -->
-    <div class="stat-card" [class.stat-card--ws-ok]="wsConnected" [class.stat-card--ws-off]="!wsConnected">
-      <div class="stat-icon">🔌</div>
-      <div class="stat-content">
-        <div class="stat-label">WebSocket</div>
-        <div class="stat-value">{{ wsStatus | titlecase }}</div>
-        <div class="stat-meta">{{ evictionNotifs.length }} évictions reçues</div>
+  <!-- ── CONFIRMATION INLINE ───────────────────────────────────────────── -->
+  <div class="confirm-dialog" *ngIf="pendingAction">
+    <div class="confirm-dialog__inner">
+      <span>⚠️ {{ pendingAction.label }}</span>
+      <div class="confirm-dialog__actions">
+        <button class="btn btn--danger btn--sm"  (click)="confirmYes()">Confirmer</button>
+        <button class="btn btn--ghost btn--sm"   (click)="confirmNo()">Annuler</button>
       </div>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════
-       MÉTRIQUES PERFORMANCE
-       ══════════════════════════════════════════════════════ -->
-  <div class="metrics-section">
-    <div class="metrics-header">
-      <h2 class="section-title">Performance du Cache</h2>
-      <div class="metrics-actions">
-        <span class="last-refresh" *ngIf="lastRefresh">{{ lastRefresh | date:'HH:mm:ss' }}</span>
-        <button class="btn-metrics-refresh" (click)="loadMetrics(); loadHistory()">Rafraîchir</button>
-        <button class="btn-metrics-reset"   (click)="resetMetrics()">Reset</button>
+  <!-- ── CARTES KPI ─────────────────────────────────────────────────────── -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Hit Rate Global</div>
+      <div class="kpi-value" [class]="'kpi-value--' + getHitRateClass()">
+        {{ metrics?.hitRate?.toFixed(1) ?? '—' }}%
       </div>
+      <div class="kpi-sub">{{ metrics?.totalHits ?? 0 }} hits / {{ metrics?.totalRequests ?? 0 }} req</div>
     </div>
-    <div class="metrics-loader" *ngIf="metricsLoading">
-      <div class="spinner-sm"></div><span>Chargement des métriques...</span>
+    <div class="kpi-card">
+      <div class="kpi-label">Clés Redis</div>
+      <div class="kpi-value">{{ stats?.totalKeys ?? '—' }}</div>
+      <div class="kpi-sub">{{ stats?.totalSizeMB ?? '0' }} MB</div>
     </div>
-    <ng-container *ngIf="metrics && !metricsLoading">
-      <div class="perf-grid">
-        <div class="perf-card perf-hitrate" [ngClass]="getHitRateClass()">
-          <div class="perf-label">Hit Rate Global</div>
-          <div class="perf-value">{{ metrics.hitRate }}%</div>
-          <div class="perf-bar"><div class="perf-bar-fill" [style.width.%]="metrics.hitRate"></div></div>
-          <div class="perf-sub">{{ metrics.totalRequests | number }} requêtes totales</div>
-        </div>
-        <div class="perf-card"><div class="perf-label">Total Requêtes</div><div class="perf-value neutral">{{ metrics.totalRequests | number }}</div><div class="perf-icon">🔁</div></div>
-        <div class="perf-card"><div class="perf-label">Total Hits</div><div class="perf-value success">{{ metrics.totalHits | number }}</div><div class="perf-icon">✅</div></div>
-        <div class="perf-card"><div class="perf-label">Total Misses</div><div class="perf-value danger">{{ metrics.totalMisses | number }}</div><div class="perf-icon">❌</div></div>
+    <div class="kpi-card">
+      <div class="kpi-label">Latence L1</div>
+      <div class="kpi-value kpi-value--excellent">{{ formatTime(metrics?.l1AvgResponseTime ?? 0) }}</div>
+      <div class="kpi-sub">vs MongoDB {{ formatTime(metrics?.l3AvgResponseTime ?? 0) }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Gain performance</div>
+      <div class="kpi-value kpi-value--excellent">{{ getGainLabel() }}</div>
+      <div class="kpi-sub">Cache vs base de données</div>
+    </div>
+    <div class="kpi-card" *ngIf="savingsEstimate">
+      <div class="kpi-label">Temps économisé</div>
+      <div class="kpi-value kpi-value--excellent">{{ savingsEstimate.timeSavedFormatted }}</div>
+      <div class="kpi-sub">{{ savingsEstimate.dbQueriesAvoided }} requêtes évitées</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Évictions LRU</div>
+      <div class="kpi-value" [class]="'kpi-value--' + getEvictionRateClass()">
+        {{ evictionStats.evictionRate }}%
       </div>
-      <div class="levels-grid">
-        <div class="level-card l1">
-          <div class="level-top"><span class="level-badge">L1</span><span class="level-name">Mémoire Locale</span></div>
-          <div class="level-body">
-            <div class="ls"><span class="ls-k">Hits</span><span class="ls-v success">{{ metrics.l1Hits }}</span></div>
-            <div class="ls"><span class="ls-k">Misses</span><span class="ls-v danger">{{ metrics.l1Misses }}</span></div>
-            <div class="ls"><span class="ls-k">Hit Rate</span><span class="ls-v accent">{{ metrics.l1HitRate }}%</span></div>
-            <div class="ls"><span class="ls-k">Avg Time</span><span class="ls-v">{{ formatTime(metrics.l1AvgResponseTime) }}</span></div>
-          </div>
-          <div class="level-bar"><div class="level-bar-fill" [style.width.%]="metrics.l1HitRate"></div></div>
-        </div>
-        <div class="level-card l2">
-          <div class="level-top"><span class="level-badge">L2</span><span class="level-name">Redis</span></div>
-          <div class="level-body">
-            <div class="ls"><span class="ls-k">Hits</span><span class="ls-v success">{{ metrics.l2Hits }}</span></div>
-            <div class="ls"><span class="ls-k">Misses</span><span class="ls-v danger">{{ metrics.l2Misses }}</span></div>
-            <div class="ls"><span class="ls-k">Hit Rate</span><span class="ls-v accent">{{ metrics.l2HitRate }}%</span></div>
-            <div class="ls"><span class="ls-k">Avg Time</span><span class="ls-v">{{ formatTime(metrics.l2AvgResponseTime) }}</span></div>
-          </div>
-          <div class="level-bar"><div class="level-bar-fill" [style.width.%]="metrics.l2HitRate"></div></div>
-        </div>
-        <div class="level-card l3">
-          <div class="level-top"><span class="level-badge">L3</span><span class="level-name">MongoDB</span></div>
-          <div class="level-body">
-            <div class="ls"><span class="ls-k">Requêtes DB</span><span class="ls-v danger">{{ metrics.l3Requests }}</span></div>
-            <div class="ls"><span class="ls-k">Avg Time</span><span class="ls-v">{{ formatTime(metrics.l3AvgResponseTime) }}</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="charts-row">
-        <div class="chart-card">
-          <div class="chart-title">Répartition Hits / Misses</div>
-          <div class="chart-wrap-donut"><canvas #hitMissChart></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Évolution du Hit Rate</div>
-          <div class="chart-wrap-line" *ngIf="metricsHistory.length > 0"><canvas #hitRateChart></canvas></div>
-          <div class="chart-empty" *ngIf="metricsHistory.length === 0">
-            <span>📭</span><p>Pas encore de données</p><small>Snapshots toutes les 60s</small>
-          </div>
-        </div>
-      </div>
-    </ng-container>
+      <div class="kpi-sub">{{ evictionStats.totalEvictions }} total</div>
+    </div>
   </div>
 
-  <!-- SMART CACHE — TTL Adaptatif (inchangé) -->
-  <div class="smart-cache-section">
-    <div class="smart-header">
-      <div class="smart-header__left">
-        <span class="smart-header__badge">⚡ SMART CACHE</span>
-        <h2 class="section-title">
-          TTL Adaptatif &amp; Stratégie
-          <span class="strategy-pill" [ngClass]="smartConfig?.strategyName?.toLowerCase()">
-            {{ smartConfig?.strategyName ?? '…' }}
-          </span>
-        </h2>
-      </div>
-      <div class="smart-header__actions">
-        <button class="btn-metrics-refresh" (click)="loadSmartConfig()">Rafraîchir</button>
-        <button class="btn-metrics-refresh" (click)="loadPopularKeys()">Top clés</button>
+  <!-- ── ONGLETS ─────────────────────────────────────────────────────────── -->
+  <div class="tab-bar">
+    <button class="tab-btn" [class.tab-btn--active]="activeTab === 'overview'"    (click)="activeTab = 'overview'">📊 Vue d'ensemble</button>
+    <button class="tab-btn" [class.tab-btn--active]="activeTab === 'search'"      (click)="activeTab = 'search'">🔍 Recherche</button>
+    <button class="tab-btn" [class.tab-btn--active]="activeTab === 'smart'"       (click)="activeTab = 'smart'">🧠 Smart Cache</button>
+    <button class="tab-btn" [class.tab-btn--active]="activeTab === 'timeline'"    (click)="activeTab = 'timeline'; loadInvalidationHistory()">
+      📅 Timeline
+    </button>
+    <button class="tab-btn" [class.tab-btn--active]="activeTab === 'alerts'"      (click)="activeTab = 'alerts'; loadAlerts()">
+      🔔 Alertes
+      <span class="tab-badge" *ngIf="activeAlerts.length > 0">{{ activeAlerts.length }}</span>
+    </button>
+    <button class="tab-btn" [class.tab-btn--active]="activeTab === 'compression'" (click)="activeTab = 'compression'; loadCompressionStats()">
+      🗜️ Compression
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       ONGLET : VUE D'ENSEMBLE
+       ══════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="activeTab === 'overview'" class="tab-content">
+
+    <!-- Actions rapides -->
+    <div class="section">
+      <h2>⚡ Actions rapides</h2>
+      <div class="action-row">
+        <div class="input-group">
+          <input type="text" [(ngModel)]="searchPattern" placeholder="Pattern (ex: products:*)" class="form-input" />
+          <button class="btn btn--sm btn--secondary" (click)="previewPattern = searchPattern; previewDeletePattern()">
+            👁 Prévisualiser
+          </button>
+          <button class="btn btn--sm btn--danger" (click)="deleteByPattern()">
+            🗑 Supprimer pattern
+          </button>
+        </div>
+        <button class="btn btn--sm btn--warning" (click)="clearAll()">🧹 Vider tout</button>
+        <button class="btn btn--sm btn--primary" (click)="warmupCache()">🔥 Warmup</button>
+        <button class="btn btn--sm btn--ghost"   (click)="resetMetrics()">🔄 Reset métriques</button>
       </div>
     </div>
-    <div class="smart-kpi-row" *ngIf="smartConfig">
-      <div class="smart-kpi"><div class="smart-kpi__label">TTL Base</div><div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.baseTTL) }}</div></div>
-      <div class="smart-kpi smart-kpi--arrow">→</div>
-      <div class="smart-kpi smart-kpi--hot"><div class="smart-kpi__label">Clé chaude (≥{{ smartConfig.hotThreshold }} hits)</div><div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.baseTTL * 4) }}</div><div class="smart-kpi__sub">jusqu'à ×4</div></div>
-      <div class="smart-kpi smart-kpi--arrow">→</div>
-      <div class="smart-kpi smart-kpi--cold"><div class="smart-kpi__label">Clé froide ({{ formatSmartTTL(smartConfig.coldAfterMs / 1000) }} sans accès)</div><div class="smart-kpi__value">{{ formatSmartTTL(smartConfig.minTTL) }}</div><div class="smart-kpi__sub">minimum</div></div>
+
+    <!-- Graphiques métriques -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Hits / Misses par niveau</h3>
+        <div class="chart-wrap"><canvas #hitMissChart></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Hit Rate dans le temps</h3>
+        <div class="chart-wrap"><canvas #hitRateChart></canvas></div>
+      </div>
+      <div class="chart-card chart-card--wide">
+        <h3>Cache Redis vs MongoDB</h3>
+        <div class="chart-wrap chart-wrap--tall"><canvas #compareChart></canvas></div>
+      </div>
+      <div class="chart-card chart-card--wide">
+        <h3>Historique 24h</h3>
+        <div class="chart-wrap chart-wrap--tall"><canvas #historyChart></canvas></div>
+      </div>
     </div>
-    <div class="smart-grid">
-      <div class="smart-panel">
-        <h3 class="smart-panel__title">Configuration TTL Adaptatif</h3>
-        <div class="smart-form" *ngIf="smartConfig">
-          <label class="smart-field"><span class="sf-label">TTL de base (s)</span><input type="number" [(ngModel)]="smartForm.baseTTL" min="1" class="sf-input" /><small>TTL appliqué par défaut</small></label>
-          <label class="smart-field"><span class="sf-label">TTL minimum (s)</span><input type="number" [(ngModel)]="smartForm.minTTL" min="1" class="sf-input" /><small>Plancher pour les clés froides</small></label>
-          <label class="smart-field"><span class="sf-label">TTL maximum (s)</span><input type="number" [(ngModel)]="smartForm.maxTTL" min="1" class="sf-input" /><small>Plafond pour les clés chaudes</small></label>
-          <label class="smart-field"><span class="sf-label">Seuil clé chaude (hits)</span><input type="number" [(ngModel)]="smartForm.hotThreshold" min="1" class="sf-input" /></label>
-          <label class="smart-field"><span class="sf-label">Inactivité clé froide (ms)</span><input type="number" [(ngModel)]="smartForm.coldAfterMs" min="1000" step="1000" class="sf-input" /></label>
-          <button class="btn-apply-smart" (click)="saveSmartConfig()" [disabled]="smartSaving">{{ smartSaving ? 'Application…' : 'Appliquer sans redémarrer' }}</button>
-        </div>
-        <div class="smart-rules" *ngIf="smartConfig?.rules?.length">
-          <h4 class="smart-rules__title">Règles statiques (prioritaires)</h4>
-          <table class="smart-rules-table">
-            <thead><tr><th>Motif</th><th>TTL forcé</th></tr></thead>
-            <tbody><tr *ngFor="let r of smartConfig!.rules"><td><code>{{ r.pattern }}</code></td><td class="rule-ttl">{{ formatSmartTTL(r.ttl) }}</td></tr></tbody>
-          </table>
+
+    <!-- Graphiques avancés -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Temps de réponse (Moy/p95/p99)</h3>
+        <div class="chart-wrap"><canvas #responseTimeChart></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Distribution des requêtes</h3>
+        <div class="chart-wrap"><canvas #distributionChart></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Score d'efficacité</h3>
+        <div class="chart-wrap"><canvas #efficiencyGauge></canvas></div>
+        <div class="efficiency-overlay" *ngIf="efficiencyScore">
+          <span class="efficiency-score" [class]="'eff--' + getEfficiencyClass()">{{ efficiencyScore.overall }}%</span>
         </div>
       </div>
-      <div class="smart-panel">
-        <h3 class="smart-panel__title">Top clés — stratégie {{ smartConfig?.strategyName ?? '' }}</h3>
-        <div class="popular-loading" *ngIf="popularLoading"><div class="spinner-sm"></div><span>Analyse…</span></div>
-        <div class="popular-empty" *ngIf="!popularLoading && popularKeys.length === 0"><span>📭</span> Aucune donnée</div>
-        <div class="popular-table-wrap" *ngIf="!popularLoading && popularKeys.length > 0">
-          <table class="popular-table">
-            <thead><tr><th>Clé</th><th>Score</th><th>TTL calc.</th></tr></thead>
+      <div class="chart-card">
+        <h3>Répartition mémoire</h3>
+        <div class="chart-wrap"><canvas #memoryDonutChart></canvas></div>
+      </div>
+    </div>
+
+    <!-- Clés populaires + Évictions -->
+    <div class="two-col-grid">
+      <div class="section">
+        <h2>🏆 Top clés (accès)</h2>
+        <div class="table-wrap">
+          <table class="data-table" *ngIf="popularCacheKeys.length > 0">
+            <thead><tr><th>Clé</th><th>Accès</th><th>Dernier accès</th></tr></thead>
             <tbody>
-              <tr *ngFor="let k of popularKeys; let i = index">
-                <td class="pop-key"><span class="pop-rank">#{{ i + 1 }}</span><code>{{ k.key.length > 40 ? (k.key | slice:0:40) + '…' : k.key }}</code></td>
-                <td><div class="score-bar-wrap"><div class="score-bar" [style.width.%]="(k.score / (popularKeys[0].score || 1)) * 100"></div><span class="score-val">{{ k.score }}</span></div></td>
-                <td class="pop-ttl"><span [class]="getTTLClass(k.computedTTL)">{{ k.computedTTL !== null ? formatSmartTTL(k.computedTTL) : '—' }}</span></td>
+              <tr *ngFor="let k of popularCacheKeys">
+                <td class="key-cell" [title]="k.key">{{ k.key | slice:0:40 }}{{ k.key.length > 40 ? '…' : '' }}</td>
+                <td><span class="badge badge--blue">{{ k.accessCount }}</span></td>
+                <td>{{ k.lastAccess | date:'HH:mm:ss' }}</td>
               </tr>
             </tbody>
           </table>
-        </div>
-        <div class="key-inspector">
-          <h3 class="smart-panel__title" style="margin-top: 1.5rem">Inspecter une clé</h3>
-          <div class="inspector-row">
-            <input class="sf-input inspector-input" placeholder="products:list|gender:homme" [(ngModel)]="inspectKeyValue" (keyup.enter)="inspectKey()" />
-            <button class="btn-inspect" (click)="inspectKey()" [disabled]="inspecting">{{ inspecting ? '…' : 'Go' }}</button>
-          </div>
-          <div class="inspect-result" *ngIf="inspectResult">
-            <div class="ir-row"><span class="ir-label">L1 (mémoire)</span><span class="ir-tag" [class.ir-tag--ok]="inspectResult.inL1" [class.ir-tag--no]="!inspectResult.inL1">{{ inspectResult.inL1 ? '✓ Présent' : '✗ Absent' }}</span></div>
-            <div class="ir-row"><span class="ir-label">L2 (Redis)</span><span class="ir-tag" [class.ir-tag--ok]="inspectResult.inL2" [class.ir-tag--no]="!inspectResult.inL2">{{ inspectResult.inL2 ? '✓ Présent' : '✗ Absent' }}</span></div>
-            <div class="ir-row"><span class="ir-label">TTL Redis restant</span><span class="ir-val">{{ formatSmartTTL(inspectResult.redisTTL) }}</span></div>
-            <div class="ir-row" *ngIf="inspectResult.computedTTL !== null"><span class="ir-label">TTL adaptatif calculé</span><span class="ir-val ir-val--accent">{{ formatSmartTTL(inspectResult.computedTTL) }}</span></div>
-            <div class="ir-row" *ngIf="inspectResult.strategyMeta"><span class="ir-label">Hits / Fréq.</span><span class="ir-val">{{ inspectResult.strategyMeta['hits'] ?? inspectResult.strategyMeta['freq'] ?? 0 }}</span></div>
-          </div>
+          <div class="empty-state" *ngIf="popularCacheKeys.length === 0">Aucune donnée disponible</div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Graphiques (inchangés) -->
-  <div class="graph-section">
-    <div class="graph-header">
-      <div>
-        <h2 class="section-title">Graphique 1 — Temps de réponse : Cache Redis vs MongoDB</h2>
-        <p class="graph-subtitle">Comparaison du temps moyen de traitement (ms)</p>
-      </div>
-      <div class="graph-gain-badge" *ngIf="metrics"><span class="gain-number">{{ getGainLabel() }}</span><span class="gain-label">plus rapide</span></div>
-    </div>
-    <div class="graph-wrap"><canvas #compareChart role="img" aria-label="Graphique comparatif Cache Redis vs MongoDB"></canvas></div>
-  </div>
-
-  <div class="graph-section">
-    <div class="graph-header">
-      <div>
-        <h2 class="section-title">Graphique 2 — Historique des 24 dernières heures</h2>
-        <p class="graph-subtitle">Évolution de la latence (ms) et du taux de cache hit</p>
+      <div class="section">
+        <h2>⚡ Évictions récentes LRU</h2>
+        <div class="table-wrap">
+          <table class="data-table" *ngIf="evictionStats.recentEvictions.length > 0">
+            <thead><tr><th>Heure</th><th>Clé</th><th>Raison</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let e of evictionStats.recentEvictions">
+                <td>{{ e.timestamp | date:'HH:mm:ss' }}</td>
+                <td class="key-cell" [title]="e.key">{{ e.key | slice:0:30 }}…</td>
+                <td><span class="badge badge--orange">{{ e.reason }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="empty-state" *ngIf="evictionStats.recentEvictions.length === 0">Aucune éviction récente</div>
+        </div>
       </div>
     </div>
-    <div class="graph-wrap graph-wrap--tall"><canvas #historyChart role="img" aria-label="Historique 24h latence et hit rate"></canvas></div>
-  </div>
 
-  <!-- Cache de Recherche (inchangé) -->
-  <div class="search-cache-section">
-    <div class="metrics-header">
-      <h2 class="section-title">Cache de Recherche<span class="live-badge" *ngIf="!searchKeysLoading">LIVE</span><span class="loading-badge" *ngIf="searchKeysLoading">Mise à jour...</span></h2>
-      <div class="metrics-actions"><span class="last-refresh" *ngIf="lastRefresh">{{ lastRefresh | date:'HH:mm:ss' }}</span><button class="btn-metrics-refresh" (click)="loadSearchCacheKeys()">Actualiser</button></div>
-    </div>
-    <div class="search-counters-grid">
-      <div class="search-counter-card" [class.active]="searchStats.textSearchKeys > 0"><div class="sc-icon">🔤</div><div class="sc-count">{{ searchStats.textSearchKeys }}</div><div class="sc-label">Recherches texte</div><div class="sc-ttl">TTL 5 min</div></div>
-      <div class="search-counter-card" [class.active]="searchStats.categoryFilterKeys > 0"><div class="sc-icon">📂</div><div class="sc-count">{{ searchStats.categoryFilterKeys }}</div><div class="sc-label">Filtres catégorie</div><div class="sc-ttl">TTL 30 min</div></div>
-      <div class="search-counter-card" [class.active]="searchStats.priceFilterKeys > 0"><div class="sc-icon">💰</div><div class="sc-count">{{ searchStats.priceFilterKeys }}</div><div class="sc-label">Filtres prix</div><div class="sc-ttl">TTL 10 min</div></div>
-      <div class="search-counter-card" [class.active]="searchStats.suggestionKeys > 0"><div class="sc-icon">💡</div><div class="sc-count">{{ searchStats.suggestionKeys }}</div><div class="sc-label">Suggestions</div><div class="sc-ttl">TTL 2 min</div></div>
-      <div class="search-counter-card" [class.active]="searchStats.popularKeys > 0"><div class="sc-icon">🔥</div><div class="sc-count">{{ searchStats.popularKeys }}</div><div class="sc-label">Populaires</div><div class="sc-ttl">TTL 1 heure</div></div>
-      <div class="search-counter-card total" [class.active]="searchStats.totalSearchKeys > 0"><div class="sc-icon">📊</div><div class="sc-count">{{ searchStats.totalSearchKeys }}</div><div class="sc-label">Total en cache</div></div>
-    </div>
-    <div class="search-keys-section">
-      <div class="search-keys-header">
-        <h3 class="search-keys-title">Clés actives <span class="keys-count-badge">{{ searchCacheKeys.length }}</span></h3>
-        <button class="btn-clear-search" (click)="clearSearchCache()" *ngIf="searchCacheKeys.length > 0">Vider le cache recherche</button>
-      </div>
-      <div class="search-keys-loading" *ngIf="searchKeysLoading"><div class="spinner-sm"></div><span>Mise à jour...</span></div>
-      <div class="search-keys-empty" *ngIf="!searchKeysLoading && searchCacheKeys.length === 0"><span>📭</span><div><strong>Aucune clé de recherche</strong><p>Effectuez une recherche sur le site pour voir les clés.</p></div></div>
-      <div class="search-keys-table-wrap" *ngIf="!searchKeysLoading && searchCacheKeys.length > 0">
-        <table class="keys-table">
+    <!-- Clés récentes + logs -->
+    <div class="section">
+      <h2>🗂 Clés en cache
+        <div class="filter-row">
+          <select [(ngModel)]="selectedType" class="form-select">
+            <option value="all">Tous les types</option>
+            <option *ngFor="let t of getTypes()" [value]="t">{{ t }}</option>
+          </select>
+        </div>
+      </h2>
+      <div class="table-wrap">
+        <table class="data-table" *ngIf="getFilteredKeys().length > 0">
           <thead><tr><th>Clé</th><th>Type</th><th>TTL</th><th>Taille</th><th>Action</th></tr></thead>
           <tbody>
-            <tr *ngFor="let key of searchCacheKeys">
-              <td class="key-cell"><code>{{ key.key }}</code></td>
-              <td><span class="search-type-badge" [ngClass]="getSearchKeyType(key.key)">{{ getSearchKeyTypeLabel(key.key) }}</span></td>
-              <td><span [ngClass]="getSearchKeyTTLClass(key.ttl)">{{ formatTTL(key.ttl) }}</span><div class="ttl-mini-bar" *ngIf="key.ttl !== 'permanent'"><div class="ttl-mini-fill" [style.width.%]="getTTLPercent(key.ttl)" [ngClass]="getSearchKeyTTLClass(key.ttl)"></div></div></td>
+            <tr *ngFor="let key of getFilteredKeys()">
+              <td class="key-cell" [title]="key.key">{{ key.key | slice:0:50 }}{{ key.key.length > 50 ? '…' : '' }}</td>
+              <td><span class="type-badge" [style.background]="getTypeColor(key.type)">{{ key.type }}</span></td>
+              <td [class]="getSearchKeyTTLClass(key.ttl)">{{ formatTTL(key.ttl) }}</td>
               <td>{{ key.sizeKB }} KB</td>
-              <td><button class="btn-delete" (click)="deleteKey(key.key)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
+              <td><button class="btn btn--xs btn--danger" (click)="deleteKey(key.key)">🗑</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="empty-state" *ngIf="getFilteredKeys().length === 0">Aucune clé</div>
+      </div>
+    </div>
+
+    <!-- Logs admin -->
+    <div class="section" *ngIf="actionLogs.length > 0">
+      <h2>📋 Journal des actions
+        <button class="btn btn--xs btn--ghost" (click)="clearLogs()">Effacer</button>
+      </h2>
+      <div class="log-list">
+        <div *ngFor="let log of actionLogs" class="log-entry" [class.log-entry--error]="log.status === 'Erreur'">
+          <span class="log-time">{{ log.date | date:'HH:mm:ss' }}</span>
+          <span class="log-action">{{ log.action }}</span>
+          <span class="log-key" [title]="log.key">{{ log.key | slice:0:40 }}</span>
+          <span class="log-status" [class.log-status--ok]="log.status === 'Succès'">{{ log.status }}</span>
+          <button class="btn btn--xs btn--ghost" (click)="removeLog(log.id)">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notifications éviction WS -->
+    <div class="section" *ngIf="showEvictionPanel">
+      <h2>🔴 Évictions temps réel (WebSocket)
+        <div class="section-actions">
+          <button class="btn btn--xs btn--ghost" (click)="clearEvictionNotifs()">Effacer</button>
+          <button class="btn btn--xs btn--ghost" (click)="showEvictionPanel = false">Masquer</button>
+        </div>
+      </h2>
+      <div class="notif-list">
+        <div *ngFor="let n of evictionNotifs"
+             class="notif-item"
+             [class.notif-item--new]="n.isNew"
+             [class.notif-item--batch]="n.reason === 'batch_eviction'">
+          <span class="notif-time">{{ n.timestamp | date:'HH:mm:ss.SSS' }}</span>
+          <span class="notif-level badge" [class.badge--red]="n.level === 'ALL'" [class.badge--orange]="n.level === 'batch'" [class.badge--blue]="n.level === 'L1+L2'">{{ n.level }}</span>
+          <span class="notif-key" [title]="n.key">{{ n.key | slice:0:60 }}</span>
+          <span class="notif-reason">{{ reasonLabel(n.reason) }}</span>
+          <button class="btn btn--xs btn--ghost" (click)="removeEvictionNotif(n.id)">✕</button>
+        </div>
+        <div class="empty-state" *ngIf="evictionNotifs.length === 0">En attente d'évictions…</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       ONGLET : RECHERCHE
+       ══════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="activeTab === 'search'" class="tab-content">
+    <div class="section">
+      <h2>🔍 Cache de recherche</h2>
+      <div class="search-stats-grid">
+        <div class="stat-chip">📊 Total <strong>{{ searchStats.totalSearchKeys }}</strong></div>
+        <div class="stat-chip">🔤 Texte <strong>{{ searchStats.textSearchKeys }}</strong></div>
+        <div class="stat-chip">🏷 Catégorie <strong>{{ searchStats.categoryFilterKeys }}</strong></div>
+        <div class="stat-chip">💰 Prix <strong>{{ searchStats.priceFilterKeys }}</strong></div>
+        <div class="stat-chip">💡 Suggestions <strong>{{ searchStats.suggestionKeys }}</strong></div>
+      </div>
+      <div class="action-row">
+        <button class="btn btn--danger btn--sm" (click)="clearSearchCache()">🗑 Vider cache recherche</button>
+        <button class="btn btn--ghost btn--sm"  (click)="loadSearchCacheKeys()">🔄 Rafraîchir</button>
+      </div>
+      <div class="table-wrap" *ngIf="!searchKeysLoading">
+        <table class="data-table" *ngIf="searchCacheKeys.length > 0">
+          <thead><tr><th>Clé</th><th>Type</th><th>TTL</th><th>Taille</th><th>Barre</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let k of searchCacheKeys">
+              <td class="key-cell" [title]="k.key">{{ k.key | slice:0:55 }}</td>
+              <td><span class="type-badge">{{ getSearchKeyTypeLabel(k.key) }}</span></td>
+              <td [class]="getSearchKeyTTLClass(k.ttl)">{{ formatTTL(k.ttl) }}</td>
+              <td>{{ k.sizeKB }} KB</td>
+              <td>
+                <div class="ttl-bar">
+                  <div class="ttl-bar__fill" [style.width.%]="getTTLPercent(k.ttl)" [class]="getSearchKeyTTLClass(k.ttl)"></div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="empty-state" *ngIf="searchCacheKeys.length === 0">Aucune clé de recherche</div>
+      </div>
+      <div class="loading" *ngIf="searchKeysLoading">Chargement…</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       ONGLET : SMART CACHE
+       ══════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="activeTab === 'smart'" class="tab-content">
+
+    <!-- Config TTL adaptatif -->
+    <div class="section">
+      <h2>🧠 TTL Adaptatif (formule continue)</h2>
+      <div class="formula-box">
+        <code>TTL = TTL_base × (1 + log(1+n)/log(10)) × (1 + L3/200) × max(0.2, 1 − δmin/60)</code>
+        <p class="formula-legend">n = accès | L3 = latence MongoDB (ms) | δmin = minutes depuis MAJ</p>
+      </div>
+      <div class="smart-form" *ngIf="smartConfig">
+        <div class="form-row">
+          <label>TTL base (s)</label>
+          <input type="number" [(ngModel)]="smartForm.baseTTL" class="form-input form-input--sm" min="1" />
+        </div>
+        <div class="form-row">
+          <label>TTL min (s)</label>
+          <input type="number" [(ngModel)]="smartForm.minTTL" class="form-input form-input--sm" min="1" />
+        </div>
+        <div class="form-row">
+          <label>TTL max (s)</label>
+          <input type="number" [(ngModel)]="smartForm.maxTTL" class="form-input form-input--sm" min="1" />
+        </div>
+        <div class="form-row">
+          <label>Seuil chaud (hits)</label>
+          <input type="number" [(ngModel)]="smartForm.hotThreshold" class="form-input form-input--sm" min="1" />
+        </div>
+        <div class="form-row">
+          <label>Froid après (ms)</label>
+          <input type="number" [(ngModel)]="smartForm.coldAfterMs" class="form-input form-input--sm" min="1000" />
+        </div>
+        <button class="btn btn--primary" (click)="saveSmartConfig()" [disabled]="smartSaving">
+          {{ smartSaving ? 'Sauvegarde…' : '💾 Appliquer à chaud' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Clés populaires par stratégie -->
+    <div class="section">
+      <h2>🏆 Clés populaires (stratégie {{ smartConfig?.strategyName }})</h2>
+      <div class="table-wrap" *ngIf="!popularLoading">
+        <table class="data-table" *ngIf="popularKeys.length > 0">
+          <thead><tr><th>Clé</th><th>Score</th><th>TTL calculé</th><th>Dernier accès</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let k of popularKeys">
+              <td class="key-cell" [title]="k.key">{{ k.key | slice:0:50 }}</td>
+              <td><span class="badge badge--blue">{{ k.score }}</span></td>
+              <td [class]="getTTLClass(k.computedTTL)">{{ k.computedTTL !== null ? formatSmartTTL(k.computedTTL) : '—' }}</td>
+              <td>{{ k.lastAccess | date:'HH:mm:ss' }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="empty-state" *ngIf="popularKeys.length === 0">Aucune donnée</div>
+      </div>
+      <div class="loading" *ngIf="popularLoading">Chargement…</div>
+    </div>
+
+    <!-- Inspecteur de clé -->
+    <div class="section">
+      <h2>🔬 Inspecter une clé</h2>
+      <div class="input-group">
+        <input type="text" [(ngModel)]="inspectKeyValue" placeholder="products:list:all" class="form-input" />
+        <button class="btn btn--primary btn--sm" (click)="inspectKey()" [disabled]="inspecting">
+          {{ inspecting ? '…' : '🔍 Inspecter' }}
+        </button>
+      </div>
+      <div class="inspect-result" *ngIf="inspectResult">
+        <div class="inspect-grid">
+          <div class="inspect-item">
+            <label>En L1 (mémoire)</label>
+            <span [class.text-green]="inspectResult.inL1" [class.text-red]="!inspectResult.inL1">{{ inspectResult.inL1 ? '✅ Oui' : '❌ Non' }}</span>
+          </div>
+          <div class="inspect-item">
+            <label>En L2 (Redis)</label>
+            <span [class.text-green]="inspectResult.inL2" [class.text-red]="!inspectResult.inL2">{{ inspectResult.inL2 ? '✅ Oui' : '❌ Non' }}</span>
+          </div>
+          <div class="inspect-item">
+            <label>TTL Redis</label>
+            <span [class]="getTTLClass(inspectResult.redisTTL)">{{ formatSmartTTL(inspectResult.redisTTL) }}</span>
+          </div>
+          <div class="inspect-item">
+            <label>TTL calculé (adaptatif)</label>
+            <span [class]="getTTLClass(inspectResult.computedTTL)">{{ inspectResult.computedTTL !== null ? formatSmartTTL(inspectResult.computedTTL) : '—' }}</span>
+          </div>
+        </div>
+        <div class="inspect-meta" *ngIf="inspectResult.strategyMeta">
+          <strong>Méta stratégie :</strong>
+          <pre>{{ inspectResult.strategyMeta | json }}</pre>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       ★ ONGLET : TIMELINE DES INVALIDATIONS
+       ══════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="activeTab === 'timeline'" class="tab-content">
+
+    <div class="section">
+      <div class="section-header">
+        <h2>📅 Timeline des invalidations</h2>
+        <div class="section-actions">
+          <button class="btn btn--sm btn--ghost" (click)="loadInvalidationHistory()">🔄 Rafraîchir</button>
+        </div>
+      </div>
+
+      <!-- Stats agrégées -->
+      <div class="timeline-stats" *ngIf="invalidationStats">
+        <div class="stat-chip">📊 <strong>{{ invalidationStats.totalEvents }}</strong> événements (1h)</div>
+        <div class="stat-chip">🗑 <strong>{{ invalidationStats.totalKeysDeleted }}</strong> clés supprimées</div>
+        <!-- ✅ CORRECTION : $any() cast pour résoudre l'erreur NG5 sur kv.key / kv.value -->
+        <div *ngFor="let kv of invalidationStats.byTrigger | keyvalue" class="stat-chip">
+          {{ getTriggerLabel($any(kv.key)) }} <strong>×{{ $any(kv.value) }}</strong>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline" *ngIf="!timelineLoading">
+        <div *ngFor="let entry of invalidationEntries"
+             class="timeline-entry"
+             [class]="'timeline-entry--' + getTriggerClass(entry.trigger)">
+          <div class="timeline-dot"></div>
+          <div class="timeline-content">
+            <div class="timeline-header">
+              <span class="timeline-label">{{ getTriggerLabel(entry.trigger) }}</span>
+              <span class="timeline-time">{{ entry.timestamp | date:'dd/MM HH:mm:ss' }}</span>
+            </div>
+            <div class="timeline-body">
+              <span class="timeline-pattern" [title]="entry.pattern">
+                <strong>Pattern :</strong> {{ entry.pattern | slice:0:60 }}
+              </span>
+              <span class="timeline-keys">
+                <span class="badge badge--orange">{{ entry.keysDeleted }} clé{{ entry.keysDeleted > 1 ? 's' : '' }}</span>
+              </span>
+              <span class="timeline-ctx" *ngIf="entry.context">{{ entry.context }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="empty-state" *ngIf="invalidationEntries.length === 0">
+          Aucune invalidation enregistrée pour l'instant. Le buffer se remplit au fur et à mesure des opérations.
+        </div>
+      </div>
+      <div class="loading" *ngIf="timelineLoading">Chargement de la timeline…</div>
+    </div>
+
+    <!-- Section dry-run preview -->
+    <div class="section">
+      <h2>👁 Prévisualiser une suppression (dry-run)</h2>
+      <p class="section-desc">Avant de supprimer en masse, vérifiez quelles clés seront affectées.</p>
+      <div class="input-group">
+        <input type="text" [(ngModel)]="previewPattern" placeholder="products:* ou *search*" class="form-input" />
+        <button class="btn btn--primary btn--sm" (click)="previewDeletePattern()" [disabled]="previewLoading">
+          {{ previewLoading ? 'Analyse…' : '🔍 Prévisualiser' }}
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       ★ ONGLET : ALERTES
+       ══════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="activeTab === 'alerts'" class="tab-content">
+
+    <div class="section">
+      <div class="section-header">
+        <h2>🔔 Alertes actives ({{ activeAlerts.length }})</h2>
+        <div class="section-actions">
+          <button class="btn btn--sm btn--ghost" (click)="dismissAllAlerts()">Tout ignorer</button>
+          <button class="btn btn--sm btn--ghost" (click)="loadAlerts()">🔄 Rafraîchir</button>
+        </div>
+      </div>
+
+      <div *ngIf="activeAlerts.length === 0" class="empty-state empty-state--green">
+        ✅ Aucune alerte active — le cache fonctionne normalement.
+      </div>
+
+      <div *ngFor="let alert of activeAlerts" class="alert-card" [class]="'alert-card--' + alert.severity">
+        <div class="alert-card__severity">
+          <span *ngIf="alert.severity === 'urgent'">🚨</span>
+          <span *ngIf="alert.severity === 'critical'">🔴</span>
+          <span *ngIf="alert.severity === 'warning'">⚠️</span>
+          <span *ngIf="alert.severity === 'info'">ℹ️</span>
+          <span class="alert-severity-label">{{ alert.severity | uppercase }}</span>
+        </div>
+        <div class="alert-card__body">
+          <h3>{{ alert.title }}</h3>
+          <p>{{ alert.message }}</p>
+          <div class="alert-card__meta">
+            <code>{{ alert.type }}</code>
+            <span>{{ alert.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+          </div>
+          <div class="alert-data" *ngIf="alert.data && (alert.data | json) !== '{}'">
+            <strong>Données :</strong>
+            <pre>{{ alert.data | json }}</pre>
+          </div>
+        </div>
+        <button class="btn btn--xs btn--ghost alert-dismiss-btn" (click)="dismissAlert(alert.id)">✕</button>
+      </div>
+    </div>
+
+    <!-- Historique des alertes -->
+    <div class="section">
+      <h2>📋 Historique des alertes</h2>
+      <div class="table-wrap" *ngIf="alertHistory.length > 0">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Sévérité</th><th>Titre</th><th>Statut</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let a of alertHistory">
+              <td>{{ a.timestamp | date:'dd/MM HH:mm:ss' }}</td>
+              <td><span class="badge" [class]="'badge--' + a.severity">{{ a.severity }}</span></td>
+              <td>{{ a.title }}</td>
+              <td>
+                <span class="badge badge--green" *ngIf="!a.active">Résolue</span>
+                <span class="badge badge--red"   *ngIf="a.active">Active</span>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
+      <div class="empty-state" *ngIf="alertHistory.length === 0">Aucune alerte dans l'historique</div>
     </div>
-  </div>
 
-  <!-- Actions rapides (inchangées) -->
-  <div class="quick-actions">
-    <h2 class="section-title">Actions Rapides</h2>
-    <div class="actions-grid">
-      <button class="action-btn warmup"   (click)="warmupCache()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg><span>Préchauffer Cache</span></button>
-      <button class="action-btn pattern"  (click)="deleteByPattern()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Supprimer par Pattern</span></button>
-      <button class="action-btn danger"   (click)="clearAll()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><span>Vider Tout le Cache</span></button>
-    </div>
-  </div>
-
-  <!-- Distribution + Clés (inchangés) -->
-  <div class="distribution-section" *ngIf="stats">
-    <h2 class="section-title">Répartition par Type</h2>
-    <div class="distribution-grid">
-      <div class="type-card" *ngFor="let type of getTypes()" [style.border-left-color]="getTypeColor(type)">
-        <div class="type-name">{{ type }}</div>
-        <div class="type-count">{{ stats.keysByType[type] }} clés</div>
-        <div class="type-bar"><div class="type-bar-fill" [style.width.%]="(stats.keysByType[type] / stats.totalKeys) * 100" [style.background]="getTypeColor(type)"></div></div>
+    <!-- Configuration des seuils -->
+    <div class="section">
+      <h2>⚙️ Seuils configurés <span class="badge badge--gray">cache.config.js</span></h2>
+      <div class="threshold-grid">
+        <div class="threshold-card">
+          <div class="threshold-label">Hit rate critique</div>
+          <div class="threshold-value threshold-value--red">&lt; 50%</div>
+        </div>
+        <div class="threshold-card">
+          <div class="threshold-label">Hit rate attention</div>
+          <div class="threshold-value threshold-value--orange">&lt; 65%</div>
+        </div>
+        <div class="threshold-card">
+          <div class="threshold-label">Mémoire Redis</div>
+          <div class="threshold-value threshold-value--orange">&gt; 80%</div>
+        </div>
+        <div class="threshold-card">
+          <div class="threshold-label">Taux d'éviction</div>
+          <div class="threshold-value threshold-value--orange">&gt; 20%</div>
+        </div>
+        <div class="threshold-card">
+          <div class="threshold-label">Redis déconnecté</div>
+          <div class="threshold-value threshold-value--red">Urgence</div>
+        </div>
+        <div class="threshold-card">
+          <div class="threshold-label">Vérification</div>
+          <div class="threshold-value">toutes 30s</div>
+        </div>
       </div>
     </div>
+
   </div>
 
-  <div class="keys-section" *ngIf="stats">
-    <div class="keys-header">
-      <h2 class="section-title">Clés en Cache (Top 50)</h2>
-      <div class="keys-filters">
-        <select [(ngModel)]="selectedType" class="filter-select"><option value="all">Tous les types</option><option *ngFor="let type of getTypes()" [value]="type">{{ type }}</option></select>
-        <input type="text" [(ngModel)]="searchPattern" placeholder="Pattern (ex: products:*)" class="filter-input">
+  <!-- ══════════════════════════════════════════════════════════════════
+       ★ ONGLET : COMPRESSION
+       ══════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="activeTab === 'compression'" class="tab-content">
+
+    <div class="section">
+      <div class="section-header">
+        <h2>🗜️ Compression des entrées volumineuses</h2>
+        <button class="btn btn--sm btn--ghost" (click)="loadCompressionStats()">🔄 Rafraîchir</button>
       </div>
+
+      <div class="info-box" *ngIf="!compressionLoading">
+        <p>Les entrées Redis dépassant <strong>5 KB</strong> sont automatiquement compressées avec <strong>gzip</strong> avant stockage.</p>
+      </div>
+
+      <div *ngIf="compressionStats && !compressionLoading" class="compression-panel">
+
+        <!-- KPIs compression -->
+        <div class="kpi-grid kpi-grid--sm">
+          <div class="kpi-card">
+            <div class="kpi-label">Entrées compressées</div>
+            <div class="kpi-value">{{ compressionStats.totalCompressed }}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Réduction</div>
+            <div class="kpi-value kpi-value--excellent">{{ compressionStats.reductionPercent }}%</div>
+            <div class="kpi-sub">taille économisée</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Taille brute moy.</div>
+            <div class="kpi-value">{{ compressionStats.avgRawKB }} KB</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Taille compressée moy.</div>
+            <div class="kpi-value kpi-value--excellent">{{ compressionStats.avgCompressedKB }} KB</div>
+          </div>
+        </div>
+
+        <!-- Barre de réduction -->
+        <div class="compression-bar-wrap">
+          <div class="compression-bar-label">
+            <span>Taille brute ({{ compressionStats.avgRawKB }} KB)</span>
+            <span>Taille compressée ({{ compressionStats.avgCompressedKB }} KB) — économie {{ compressionStats.reductionPercent }}%</span>
+          </div>
+          <div class="compression-bar">
+            <div class="compression-bar__raw"></div>
+            <div class="compression-bar__compressed" [style.width.%]="100 - getCompressionBarWidth()"></div>
+          </div>
+          <div class="compression-bar-legend">
+            <span class="legend-raw">■ Avant compression</span>
+            <span class="legend-compressed">■ Après compression (gzip)</span>
+          </div>
+        </div>
+
+        <!-- Explication -->
+        <div class="info-box info-box--green">
+          <strong>Réduction attendue : 50–70%</strong> pour les listes de produits JSON. Les entrées ≤ 5 KB ne sont pas compressées pour éviter le surcoût CPU.
+        </div>
+
+      </div>
+
+      <div class="empty-state" *ngIf="compressionStats?.totalCompressed === 0 && !compressionLoading">
+        Aucune entrée compressée pour le moment. La compression s'active automatiquement pour les entrées &gt; 5 KB.
+      </div>
+
+      <div class="loading" *ngIf="compressionLoading">Chargement des statistiques de compression…</div>
     </div>
-    <div class="keys-table-container">
-      <table class="keys-table">
-        <thead><tr><th>Clé</th><th>Type</th><th>TTL</th><th>Taille</th><th>Actions</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let key of getFilteredKeys()">
-            <td class="key-cell"><code>{{ key.key }}</code></td>
-            <td><span class="type-badge" [style.background]="getTypeColor(key.type)">{{ key.type }}</span></td>
-            <td>{{ formatTTL(key.ttl) }}</td>
-            <td>{{ key.sizeKB }} KB</td>
-            <td><button class="btn-delete" (click)="deleteKey(key.key)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="empty-state" *ngIf="getFilteredKeys().length === 0"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="10"/></svg><p>Aucune clé trouvée</p></div>
-    </div>
+
   </div>
 
-  <!-- Loading overlay -->
-  <div class="loading-overlay" *ngIf="loading"><div class="spinner"></div><p>Chargement...</p></div>
+</div>
 
+<!-- ══════════════════════════════════════════════════════════════════
+     ★ MODAL DRY-RUN PREVIEW DELETE
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="showPreviewModal" (click)="closePreviewModal()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal__header">
+      <h2>👁 Prévisualisation — suppression par pattern</h2>
+      <button class="modal__close" (click)="closePreviewModal()">✕</button>
+    </div>
+    <div class="modal__body" *ngIf="previewResult">
+
+      <div class="preview-summary">
+        <div class="preview-stat">
+          <span class="preview-stat__label">Pattern</span>
+          <code>{{ previewResult.pattern }}</code>
+        </div>
+        <div class="preview-stat">
+          <span class="preview-stat__label">Clés concernées</span>
+          <span class="preview-count" [class.preview-count--danger]="previewResult.matchedCount > 50">
+            {{ previewResult.matchedCount }}
+          </span>
+        </div>
+        <div class="preview-stat">
+          <span class="preview-stat__label">Taille totale</span>
+          <span>{{ previewResult.totalSizeKB }} KB</span>
+        </div>
+      </div>
+
+      <div class="warning-box" *ngIf="previewResult.warning">
+        ⚠️ {{ previewResult.warning }}
+      </div>
+
+      <div class="preview-keys">
+        <div *ngFor="let k of previewResult.keys" class="preview-key-row">
+          <span class="type-badge" [style.background]="getTypeColor(k.type)">{{ k.type }}</span>
+          <span class="preview-key-name" [title]="k.key">{{ k.key | slice:0:60 }}</span>
+          <span class="preview-key-ttl">{{ formatTTL(k.ttl ?? 0) }}</span>
+          <span class="preview-key-size">{{ k.sizeKB }} KB</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost"  (click)="closePreviewModal()">Annuler</button>
+      <button class="btn btn--danger" (click)="confirmPreviewDelete()">🗑 Confirmer la suppression</button>
+    </div>
+  </div>
 </div>

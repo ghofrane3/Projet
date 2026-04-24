@@ -102,7 +102,7 @@ const productSchema = new mongoose.Schema({
 // ==========================================
 // MIDDLEWARE - Auto-générer le slug
 // ==========================================
-productSchema.pre('save', function(next) {
+productSchema.pre('save', async function() {
   if (this.isModified('name') || this.isNew) {
     this.slug = this.name
       .toLowerCase()
@@ -112,7 +112,7 @@ productSchema.pre('save', function(next) {
       .trim()
       + '-' + Date.now();
   }
-  next();
+
 });
 
 // ==========================================

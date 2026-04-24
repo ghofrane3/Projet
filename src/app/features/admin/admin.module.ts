@@ -10,6 +10,7 @@ import { CacheDashboardComponent } from './cache-dashboard/cache-dashboard.compo
 import { ProductFormComponent } from './product-form/product-form.component';
 import { AdminLayoutComponent } from './admin-layout/admin-layout.component';
 import { AdminProductListComponent } from './product-list/admin-product-list.component'; // ✅ NOUVEAU
+import {  PredictionWidgetComponent} from './prediction-widget/prediction-widget.component';
 
 @NgModule({
   declarations: [
@@ -18,7 +19,8 @@ import { AdminProductListComponent } from './product-list/admin-product-list.com
     CacheDashboardComponent,
     ProductFormComponent,
     AdminLayoutComponent,
-    AdminProductListComponent, // ✅ NOUVEAU
+    AdminProductListComponent,
+    PredictionWidgetComponent, // ✅ NOUVEAU
   ],
   imports: [
     CommonModule,
@@ -26,6 +28,7 @@ import { AdminProductListComponent } from './product-list/admin-product-list.com
     ReactiveFormsModule,
     RouterModule,
     AdminRoutingModule,
+
   ]
 })
 export class AdminModule { }

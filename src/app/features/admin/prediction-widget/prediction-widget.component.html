@@ -1,0 +1,145 @@
+<!-- prediction-widget.component.html -->
+<div class="prediction-widget">
+
+  <!-- Header -->
+  <div class="widget-header">
+    <div class="header-left">
+      <span class="widget-icon">🔮</span>
+      <div>
+        <h2 class="widget-title">Prédiction de charge</h2>
+        <span class="widget-subtitle">Profil historique 7 jours · mise à jour toutes les 60s</span>
+      </div>
+    </div>
+    <button class="warmup-btn"
+            [class.loading]="warmupLoading"
+            [class.success]="warmupSuccess"
+            (click)="triggerWarmup()"
+            [disabled]="warmupLoading">
+      <span *ngIf="!warmupLoading && !warmupSuccess">⚡ Warmup maintenant</span>
+      <span *ngIf="warmupLoading">⏳ En cours...</span>
+      <span *ngIf="warmupSuccess">✅ Warmup lancé !</span>
+    </button>
+  </div>
+
+  <!-- Loader -->
+  <div class="loader-overlay" *ngIf="loading">
+    <div class="loader-spinner"></div>
+    <p>Calcul du profil horaire...</p>
+  </div>
+
+  <ng-container *ngIf="data && !loading">
+
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="stat-card accent">
+        <span class="stat-icon">📈</span>
+        <div>
+          <span class="stat-value">{{ data.peaks.length }}</span>
+          <span class="stat-label">pics détectés</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">⏱️</span>
+        <div>
+          <span class="stat-value">
+            {{ minutesUntilNextPeak() !== null ? minutesUntilNextPeak() + ' min' : '—' }}
+          </span>
+          <span class="stat-label">prochain pic dans</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">🎯</span>
+        <div>
+          <span class="stat-value">{{ data.nextPeak?.time ?? '—' }}</span>
+          <span class="stat-label">heure du pic</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">🔥</span>
+        <div>
+          <span class="stat-value">{{ data.warmupHistory.length }}</span>
+          <span class="stat-label">warmups effectués</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graphe en barres : profil 7j vs aujourd'hui -->
+    <div class="chart-section">
+      <div class="chart-legend">
+        <span class="legend-item predicted">■ Moyenne 7 jours</span>
+        <span class="legend-item today">■ Aujourd'hui</span>
+        <span class="legend-item peak">▲ Pic prédit</span>
+        <span class="legend-item current">│ Maintenant</span>
+      </div>
+
+      <div class="bar-chart">
+        <div class="bar-group"
+             *ngFor="let slot of data.profile; let i = index"
+             [class.is-peak]="isPeak(i)"
+             [class.is-current]="isCurrentSlot(i)"
+             [class.is-future]="isFuture(i)">
+
+          <!-- Barre prédite (7j avg) -->
+          <div class="bar bar-predicted" [style.height]="barHeight(slot)"
+               [title]="data.labels[i] + ' — moy: ' + slot + ' req'">
+          </div>
+
+          <!-- Barre réelle aujourd'hui -->
+          <div class="bar bar-today" [style.height]="barHeight(data.today[i])"
+               *ngIf="data.today[i] !== null"
+               [title]="data.labels[i] + ' — auj: ' + data.today[i] + ' req'">
+          </div>
+
+          <!-- Indicateur pic -->
+          <div class="peak-marker" *ngIf="isPeak(i)">▲</div>
+          <!-- Indicateur maintenant -->
+          <div class="current-marker" *ngIf="isCurrentSlot(i)"></div>
+        </div>
+      </div>
+
+      <!-- Labels horaires (toutes les 2h) -->
+      <div class="time-labels">
+        <span *ngFor="let label of visibleLabels">{{ label }}</span>
+      </div>
+    </div>
+
+    <!-- Pics prédits -->
+    <div class="peaks-section" *ngIf="data.peaks.length > 0">
+      <h3 class="section-title">🎯 Pics de trafic prédits</h3>
+      <div class="peaks-grid">
+        <div class="peak-card" *ngFor="let peak of data.peaks">
+          <div class="peak-time">{{ peak.time }}</div>
+          <div class="peak-bar-container">
+            <div class="peak-fill" [style.width.%]="peak.confidence"></div>
+          </div>
+          <div class="peak-meta">
+            <span class="peak-req">~{{ peak.avgRequests }} req/slot</span>
+            <span class="peak-confidence">{{ peak.confidence }}% confiance</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historique warmups -->
+    <div class="warmup-section" *ngIf="data.warmupHistory.length > 0">
+      <h3 class="section-title">⚡ Historique des warmups</h3>
+      <div class="warmup-table">
+        <div class="warmup-row header-row">
+          <span>Heure</span>
+          <span>Slot prédit</span>
+          <span>Clés réchauffées</span>
+          <span>Date</span>
+        </div>
+        <div class="warmup-row" *ngFor="let log of data.warmupHistory">
+          <span class="warmup-time">{{ timeAgo(log.timestamp) }}</span>
+          <span class="warmup-slot">{{ log.time }}</span>
+          <span class="warmup-keys">
+            <span class="keys-badge">{{ log.keysWarmed }}</span>
+          </span>
+          <span class="warmup-date">{{ log.timestamp | date:'dd/MM HH:mm' }}</span>
+        </div>
+      </div>
+    </div>
+
+  </ng-container>
+</div>

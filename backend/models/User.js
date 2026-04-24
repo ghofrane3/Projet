@@ -116,6 +116,8 @@ const userSchema = new mongoose.Schema({
     default: null
   }
 
+
+
 }, {
   // Options du schéma
   timestamps: true  // Ajoute automatiquement createdAt et updatedAt

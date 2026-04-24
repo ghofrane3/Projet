@@ -1,18 +1,11 @@
 /**
- * cache-websocket.service.ts
+ * cache-websocket.service.ts  –  VERSION AMÉLIORÉE v2
  * ─────────────────────────────────────────────────────────────────────────────
- * Service Angular qui gère la connexion Socket.IO au namespace /cache-admin
- * et expose des Observables pour chaque type d'événement.
- *
- * Nouveautés v2 :
- *  - Champ `context` dans tous les événements (ex: 'order_created', 'user_updated')
- *  - Champ `label`  traduit côté serveur
- *  - Observable `allEvents$` pour un flux unifié dans le dashboard
+ * Nouveautés :
+ *  - Observable `alerts$` pour les alertes intelligentes (hit rate, mémoire…)
+ *  - Observable `alertResolved$` quand une alerte se résout
  *  - Méthode statique `contextLabel()` pour les libellés UI
- *
- * Usage dans un composant :
- *   this.wsService.evictionKey$.subscribe(ev => { ... });
- *   this.wsService.allEvents$.subscribe(ev => { ... });
+ *  - Interface `CacheAlert` avec severité et données
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -21,15 +14,15 @@ import { Observable, Subject, BehaviorSubject, merge } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { io, Socket } from 'socket.io-client';
 
-// ── Types des événements reçus ────────────────────────────────────────────────
+// ── Types événements existants ────────────────────────────────────────────────
 
 export interface EvictionKeyEvent {
   key:       string;
   reason:    string;
-  label?:    string;    // libellé lisible fourni par le serveur
+  label?:    string;
   level:     string;
   ttl:       number | null;
-  context:   string;   // ex: 'order_created', 'product_updated', 'user_deleted'
+  context:   string;
   timestamp: string;
 }
 
@@ -52,7 +45,28 @@ export interface CacheClearedEvent {
   timestamp: string;
 }
 
-/** Événement unifié pour un feed "dernières évictions" */
+// ── ★ NOUVEAUX types ──────────────────────────────────────────────────────────
+
+export type AlertSeverity = 'info' | 'warning' | 'critical' | 'urgent';
+
+export interface CacheAlert {
+  id:          string;
+  type:        string;
+  severity:    AlertSeverity;
+  title:       string;
+  message:     string;
+  data:        Record<string, any>;
+  timestamp:   string;
+  active:      boolean;
+  resolvedAt?: string;
+}
+
+export interface CacheAlertResolved {
+  type:       string;
+  resolvedAt: string;
+}
+
+/** Événement unifié pour le feed des dernières évictions */
 export interface UnifiedEvictionEvent {
   type:      'key' | 'batch' | 'cleared';
   reason:    string;
@@ -66,7 +80,8 @@ export interface UnifiedEvictionEvent {
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'error';
 
-// ── Traduction des raisons ─────────────────────────────────────────────────────
+// ── Traductions ───────────────────────────────────────────────────────────────
+
 export const REASON_LABELS: Record<string, string> = {
   manual_delete:   '🗑️ Suppression manuelle',
   ttl_expired:     '⏱️ TTL expiré',
@@ -78,7 +93,6 @@ export const REASON_LABELS: Record<string, string> = {
   eviction:        '⚡ Éviction automatique',
 };
 
-// ── Traduction des contextes métier ──────────────────────────────────────────
 export const CONTEXT_LABELS: Record<string, string> = {
   order_created:   '🛍️ Nouvelle commande client',
   order_updated:   '🛒 Commande mise à jour',
@@ -93,6 +107,13 @@ export const CONTEXT_LABELS: Record<string, string> = {
   full_flush:      '🧹 Vidage total du cache',
 };
 
+export const ALERT_SEVERITY_CLASS: Record<AlertSeverity, string> = {
+  info:     'alert-info',
+  warning:  'alert-warning',
+  critical: 'alert-critical',
+  urgent:   'alert-urgent',
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -103,33 +124,24 @@ export class CacheWebSocketService implements OnDestroy {
   private readonly NS     = '/cache-admin';
 
   // ── Subjects internes ────────────────────────────────────────────────────
-  private _evictionKey$   = new Subject<EvictionKeyEvent>();
-  private _evictionBatch$ = new Subject<EvictionBatchEvent>();
-  private _cacheCleared$  = new Subject<CacheClearedEvent>();
-  private _metrics$       = new Subject<any>();
-  private _status$        = new BehaviorSubject<ConnectionStatus>('disconnected');
+  private _evictionKey$    = new Subject<EvictionKeyEvent>();
+  private _evictionBatch$  = new Subject<EvictionBatchEvent>();
+  private _cacheCleared$   = new Subject<CacheClearedEvent>();
+  private _metrics$        = new Subject<any>();
+  private _status$         = new BehaviorSubject<ConnectionStatus>('disconnected');
+  private _alerts$         = new Subject<CacheAlert>();          // ★ NOUVEAU
+  private _alertResolved$  = new Subject<CacheAlertResolved>();  // ★ NOUVEAU
 
   // ── Observables publics ───────────────────────────────────────────────────
-
-  /** Émis pour chaque suppression unitaire de clé */
   readonly evictionKey$   = this._evictionKey$.asObservable();
-
-  /** Émis pour les suppressions en batch (pattern, flush…) */
   readonly evictionBatch$ = this._evictionBatch$.asObservable();
-
-  /** Émis quand tout le cache est vidé */
   readonly cacheCleared$  = this._cacheCleared$.asObservable();
-
-  /** Snapshot complet des métriques */
   readonly metrics$       = this._metrics$.asObservable();
-
-  /** Statut de la connexion WebSocket */
   readonly status$        = this._status$.asObservable();
+  readonly alerts$        = this._alerts$.asObservable();               // ★ NOUVEAU
+  readonly alertResolved$ = this._alertResolved$.asObservable();        // ★ NOUVEAU
 
-  /**
-   * Flux unifié de tous les événements d'éviction.
-   * Pratique pour un feed "dernières opérations" dans le dashboard.
-   */
+  /** Flux unifié de tous les événements d'éviction */
   readonly allEvents$: Observable<UnifiedEvictionEvent> = merge(
     this._evictionKey$.pipe(
       map(ev => ({
@@ -169,7 +181,6 @@ export class CacheWebSocketService implements OnDestroy {
   // ── Connexion ─────────────────────────────────────────────────────────────
   connect(): void {
     if (this.socket?.connected) return;
-
     this._status$.next('connecting');
 
     this.socket = io(`${this.WS_URL}${this.NS}`, {
@@ -180,70 +191,41 @@ export class CacheWebSocketService implements OnDestroy {
       reconnectionAttempts: 10,
     });
 
-    // ── Événements de connexion ───────────────────────────────────────────
-    this.socket.on('connect', () => {
-      console.log('🔌 [WS] Connecté au namespace /cache-admin');
-      this._status$.next('connected');
-    });
+    this.socket.on('connect',    () => this._status$.next('connected'));
+    this.socket.on('disconnect', () => this._status$.next('disconnected'));
+    this.socket.on('connect_error', () => this._status$.next('error'));
+    this.socket.on('reconnect',  () => this._status$.next('connected'));
 
-    this.socket.on('disconnect', (reason) => {
-      console.warn('🔌 [WS] Déconnecté :', reason);
-      this._status$.next('disconnected');
-    });
+    this.socket.on('eviction:key',   (d: EvictionKeyEvent)   => this._evictionKey$.next(d));
+    this.socket.on('eviction:batch', (d: EvictionBatchEvent) => this._evictionBatch$.next(d));
+    this.socket.on('cache:cleared',  (d: CacheClearedEvent)  => this._cacheCleared$.next(d));
+    this.socket.on('metrics:snapshot', (d: any)              => this._metrics$.next(d));
 
-    this.socket.on('connect_error', (err) => {
-      console.error('🔌 [WS] Erreur connexion :', err.message);
-      this._status$.next('error');
-    });
-
-    this.socket.on('reconnect', (attempt) => {
-      console.log(`🔌 [WS] Reconnecté après ${attempt} tentative(s)`);
-      this._status$.next('connected');
-    });
-
-    // ── Événements métier ─────────────────────────────────────────────────
-    this.socket.on('eviction:key', (data: EvictionKeyEvent) => {
-      this._evictionKey$.next(data);
-    });
-
-    this.socket.on('eviction:batch', (data: EvictionBatchEvent) => {
-      this._evictionBatch$.next(data);
-    });
-
-    this.socket.on('cache:cleared', (data: CacheClearedEvent) => {
-      this._cacheCleared$.next(data);
-    });
-
-    this.socket.on('metrics:snapshot', (data: any) => {
-      this._metrics$.next(data);
-    });
+    // ★ NOUVEAUX événements d'alerte
+    this.socket.on('cache:alert',          (d: CacheAlert)          => this._alerts$.next(d));
+    this.socket.on('cache:alert:resolved', (d: CacheAlertResolved)  => this._alertResolved$.next(d));
   }
 
-  // ── Déconnexion ───────────────────────────────────────────────────────────
   disconnect(): void {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
+    this.socket?.disconnect();
+    this.socket = null;
     this._status$.next('disconnected');
   }
 
-  // ── Utilitaires ───────────────────────────────────────────────────────────
-  get isConnected(): boolean {
-    return this.socket?.connected ?? false;
-  }
+  get isConnected(): boolean { return this.socket?.connected ?? false; }
 
-  /** Traduit la raison technique en libellé lisible */
   static reasonLabel(reason: string): string {
     return REASON_LABELS[reason] ?? reason;
   }
 
-  /** Traduit le contexte métier en libellé lisible */
   static contextLabel(context: string): string {
     return CONTEXT_LABELS[context] ?? context;
   }
 
-  // ── Nettoyage Angular ─────────────────────────────────────────────────────
+  static alertSeverityClass(severity: AlertSeverity): string {
+    return ALERT_SEVERITY_CLASS[severity] ?? 'alert-info';
+  }
+
   ngOnDestroy(): void {
     this.disconnect();
     this._evictionKey$.complete();
@@ -251,5 +233,7 @@ export class CacheWebSocketService implements OnDestroy {
     this._cacheCleared$.complete();
     this._metrics$.complete();
     this._status$.complete();
+    this._alerts$.complete();
+    this._alertResolved$.complete();
   }
 }

@@ -432,4 +432,152 @@ router.put('/profile', authenticateUser, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// OUBLI MOT DE PASSE — envoie un email avec lien de reset
+// POST /api/auth/forgot-password
+// ═══════════════════════════════════════════════════════════
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email requis' });
+    }
+
+    const user = await User.findOne({ email });
+
+    // Toujours répondre OK pour ne pas révéler si l'email existe
+    if (!user) {
+      return res.json({
+        success: true,
+        message: 'Si cet email existe, un lien de réinitialisation a été envoyé.',
+      });
+    }
+
+    // Générer token de reset (1h)
+    const resetToken        = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000);
+
+    user.resetPasswordToken   = resetToken;
+    user.resetPasswordExpires = resetTokenExpires;
+    await user.save();
+
+    // Envoyer l'email
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:4200'}/auth/reset-password?token=${resetToken}`;
+
+    const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;margin:0}
+  .container{max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1)}
+  .header{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:40px;text-align:center}
+  .header h1{font-size:26px;margin:10px 0}
+  .icon{font-size:48px;margin-bottom:10px}
+  .content{padding:40px 30px;color:#333}
+  .content p{margin-bottom:15px;color:#4a5568;font-size:16px;line-height:1.6}
+  .button{display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff!important;text-decoration:none;border-radius:8px;font-weight:bold;margin:20px 0}
+  .info-box{background:#f7fafc;border-left:4px solid #667eea;padding:15px;margin:20px 0;border-radius:4px}
+  .footer{background:#f7fafc;padding:30px;text-align:center;border-top:1px solid #e2e8f0;color:#718096;font-size:13px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header"><div class="icon">🔐</div><h1>Réinitialisation du mot de passe</h1></div>
+  <div class="content">
+    <h2>Bonjour ${user.name || user.email} !</h2>
+    <p>Vous avez demandé à réinitialiser votre mot de passe.</p>
+    <p>Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe :</p>
+    <center style="margin-top:24px">
+      <a href="${resetUrl}" class="button">🔑 Réinitialiser mon mot de passe</a>
+    </center>
+    <div class="info-box">
+      <p style="margin:0">⏰ Ce lien expire dans <strong>1 heure</strong>.</p>
+      <p style="margin:6px 0 0;word-break:break-all;color:#667eea;font-size:14px">${resetUrl}</p>
+    </div>
+    <p style="color:#718096;font-size:14px">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+  </div>
+  <div class="footer">
+    <p style="font-weight:bold;font-size:16px;margin-bottom:6px">👕 Fashion Store</p>
+    <p style="margin:0">© 2026 Fashion Store — Mode &amp; Vêtements</p>
+  </div>
+</div>
+</body>
+</html>`;
+
+    const { sendMail } = await import('../services/email.service.js');
+    // Utilise directement nodemailer via le transporter existant
+    const nodemailer = (await import('nodemailer')).default;
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 587, secure: false,
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD },
+      tls: { rejectUnauthorized: false },
+    });
+    await transporter.sendMail({
+      from: `"Fashion Store 👕" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: '🔐 Réinitialisation de votre mot de passe — Fashion Store',
+      html,
+    });
+
+    console.log(`📧 Email reset envoyé → ${user.email}`);
+
+    res.json({
+      success: true,
+      message: 'Si cet email existe, un lien de réinitialisation a été envoyé.',
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur forgot-password:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// RESET MOT DE PASSE — vérifie le token et change le mdp
+// POST /api/auth/reset-password
+// ═══════════════════════════════════════════════════════════
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ success: false, message: 'Token et mot de passe requis' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit faire au moins 6 caractères' });
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken:   token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lien invalide ou expiré. Veuillez refaire une demande.',
+      });
+    }
+
+    // Mettre à jour le mot de passe (le modèle User hash automatiquement via pre-save)
+    user.password             = password;
+    user.resetPasswordToken   = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+
+    console.log(`✅ Mot de passe réinitialisé pour ${user.email}`);
+
+    res.json({
+      success: true,
+      message: '✅ Mot de passe réinitialisé avec succès. Vous pouvez vous connecter.',
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur reset-password:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 export default router;

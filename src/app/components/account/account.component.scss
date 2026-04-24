@@ -1038,3 +1038,283 @@
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
 }
+/* ═══════════════════════════════════════════════════════════
+   À AJOUTER à la fin de account.component.scss
+═══════════════════════════════════════════════════════════ */
+
+/* ── Bouton suivi ──────────────────────────────────────── */
+.btn-track {
+  background: linear-gradient(135deg, #6c63ff, #4c46cc);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter .2s, transform .15s;
+
+  &:hover    { filter: brightness(1.1); }
+  &.active   { background: linear-gradient(135deg, #e53e3e, #c53030); }
+}
+
+/* ── Résumé livraison sur la carte commande ────────────── */
+.order-delivery-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #e8f5e9;
+  border-radius: 8px;
+  border-left: 3px solid #28a745;
+  font-size: .82rem;
+}
+
+.delivery-badge {
+  font-weight: 700;
+  color: #155724;
+}
+
+.delivery-eta {
+  color: #2e7d32;
+  font-size: .8rem;
+}
+
+.order-delivery-pending {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #fff8e1;
+  border-radius: 8px;
+  border-left: 3px solid #ffc107;
+  font-size: .82rem;
+  color: #856404;
+}
+
+.order-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Panneau de suivi ──────────────────────────────────── */
+.tracking-panel {
+  margin-top: 16px;
+  border-top: 2px dashed #e2e8f0;
+  padding-top: 20px;
+  animation: slideDown .25s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tracking-loader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #718096;
+  font-size: .9rem;
+  padding: 20px 0;
+}
+
+.mini-spinner {
+  width: 20px; height: 20px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #6c63ff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Annulée ──────────────────────────────────────────── */
+.tracking-cancelled {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #fff5f5;
+  border-radius: 10px;
+  color: #c53030;
+  font-weight: 600;
+
+  .cancel-icon { font-size: 1.5rem; }
+}
+
+/* ── Barre de progression ──────────────────────────────── */
+.tracking-progress {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+  min-width: 80px;
+
+  &.done   .step-circle { background: #6c63ff; color: #fff; border-color: #6c63ff; }
+  &.active .step-circle { background: #fff; color: #6c63ff; border-color: #6c63ff; box-shadow: 0 0 0 3px rgba(108,99,255,.2); font-size: 1.1rem; }
+}
+
+.step-circle {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background: #f8f9fa;
+  color: #a0aec0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: .85rem;
+  z-index: 1;
+  transition: all .3s;
+}
+
+.step-label {
+  font-size: .72rem;
+  color: #718096;
+  margin-top: 6px;
+  text-align: center;
+  max-width: 80px;
+  line-height: 1.3;
+}
+
+.progress-step.done   .step-label { color: #6c63ff; font-weight: 600; }
+.progress-step.active .step-label { color: #2d3748; font-weight: 700; }
+
+.step-line {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  right: -50%;
+  height: 2px;
+  background: #e2e8f0;
+  z-index: 0;
+}
+.progress-step.done .step-line { background: #6c63ff; }
+
+/* ── Infos transporteur ────────────────────────────────── */
+.carrier-info {
+  background: #f7f8ff;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e8eaf6;
+}
+
+.carrier-info__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.ci-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ci-label  { font-size: .72rem; color: #718096; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.ci-value  { font-size: .9rem; color: #2d3748; font-weight: 500; }
+.ci-value.mono { font-family: monospace; font-size: .85rem; }
+.success-text { color: #28a745; font-weight: 700; }
+
+/* ── Pas de transporteur ───────────────────────────────── */
+.no-carrier-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: #fff8e1;
+  border-radius: 10px;
+  border-left: 4px solid #ffc107;
+  margin-bottom: 16px;
+
+  .info-icon { font-size: 1.3rem; flex-shrink: 0; }
+  strong     { display: block; color: #856404; margin-bottom: 4px; }
+  p          { margin: 0; font-size: .85rem; color: #78600a; }
+}
+
+/* ── Timeline historique ───────────────────────────────── */
+.tracking-history {
+  margin-bottom: 16px;
+}
+
+.history-title {
+  font-size: .9rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0 0 14px;
+}
+
+.history-timeline {
+  position: relative;
+  padding-left: 24px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 8px; top: 0; bottom: 0;
+    width: 2px;
+    background: #e2e8f0;
+  }
+}
+
+.history-item {
+  position: relative;
+  margin-bottom: 14px;
+
+  &:last-child { margin-bottom: 0; }
+}
+
+.history-dot {
+  position: absolute;
+  left: -20px; top: 5px;
+  width: 12px; height: 12px;
+  background: #6c63ff;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #6c63ff;
+}
+
+.history-content {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.history-status  { font-size: .78rem; font-weight: 700; color: #6c63ff; text-transform: uppercase; margin-bottom: 2px; }
+.history-message { font-size: .875rem; color: #2d3748; }
+.history-meta    { display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+.history-location{ font-size: .75rem; color: #718096; }
+.history-date    { font-size: .75rem; color: #a0aec0; }
+
+/* ── Adresse ───────────────────────────────────────────── */
+.delivery-address {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 12px;
+
+  h4 { margin: 0 0 8px; font-size: .9rem; color: #2d3748; }
+  p  { margin: 3px 0; font-size: .85rem; color: #4a5568; }
+}
+
+/* ── Loading orders ────────────────────────────────────── */
+.loading-orders {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #718096;
+  padding: 20px 0;
+}

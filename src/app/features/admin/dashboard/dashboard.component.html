@@ -1,152 +1,497 @@
-<div class="dashboard-page">
+<!-- src/app/features/admin/dashboard/dashboard.component.html -->
+<div class="db-page">
 
-  <!-- Header -->
-  <div class="dashboard-header">
-    <h1 class="page-title">Tableau de bord</h1>
-    <p class="page-subtitle">Bienvenue, Admin </p>
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <div class="db-header">
+    <div class="db-header__left">
+      <h1 class="db-title">Tableau de bord</h1>
+      <p class="db-subtitle">Analytics & Gestion — Fashion Store</p>
+    </div>
+    <button class="btn-refresh" (click)="refreshDashboard()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <path d="M14 8A6 6 0 1 1 8 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M8 2l2.5 2.5L8 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Actualiser
+    </button>
   </div>
 
-  <!-- Stats Cards -->
-  <div class="stats-grid">
+  <!-- ═══════════════════ NAV SECTIONS ═══════════════════ -->
+  <nav class="db-nav">
+    <button [class.active]="activeSection === 'overview'"  (click)="setSection('overview')">
+      <span class="nav-icon">📊</span> Vue générale
+    </button>
+    <button [class.active]="activeSection === 'inventory'" (click)="setSection('inventory')">
+      <span class="nav-icon">📦</span> Inventaire
+    </button>
+    <button [class.active]="activeSection === 'clients'"   (click)="setSection('clients')">
+      <span class="nav-icon">👥</span> Clients
+    </button>
+    <button [class.active]="activeSection === 'funnel'"    (click)="setSection('funnel')">
+      <span class="nav-icon">🔻</span> Entonnoir
+    </button>
+  </nav>
 
-    <div class="stat-card">
-      <div class="stat-label">CHIFFRE D'AFFAIRES</div>
-      <div class="stat-value">{{ stats.totalRevenue | number:'1.1-1':'fr' }}K €</div>
-      <div class="stat-change" [ngClass]="getChangeClass(stats.revenueChange)">
-        ↑ +{{ stats.revenueChange }}% ce mois
-      </div>
-      <div class="stat-bar"></div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-label">COMMANDES</div>
-      <div class="stat-value">{{ stats.totalOrders }}</div>
-      <div class="stat-change" [ngClass]="getChangeClass(stats.ordersChange)">
-        ↑ +{{ stats.ordersChange }}% ce mois
-      </div>
-      <div class="stat-bar"></div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-label">CLIENTS ACTIFS</div>
-      <div class="stat-value">{{ stats.activeClients | number:'1.0-0':'fr' }}</div>
-      <div class="stat-change" [ngClass]="getChangeClass(stats.clientsChange)">
-        ↑ +{{ stats.clientsChange }}% ce mois
-      </div>
-      <div class="stat-bar"></div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-label">PANIER MOYEN</div>
-      <div class="stat-value">{{ stats.averageBasket }} €</div>
-      <div class="stat-change" [ngClass]="getChangeClass(stats.basketChange)">
-        ↓ {{ stats.basketChange }}% ce mois
-      </div>
-      <div class="stat-bar"></div>
-    </div>
-
+  <!-- ═══════════════════ LOADING ═══════════════════ -->
+  <div *ngIf="loading" class="db-loading">
+    <div class="spinner-ring"></div>
+    <p>Chargement des données...</p>
   </div>
 
-  <!-- Charts -->
-  <div class="charts-section">
+  <div *ngIf="!loading">
 
-    <!-- Ventes -->
-    <div class="chart-card chart-sales">
-      <h3 class="chart-title">Ventes — 12 derniers mois (K€)</h3>
-      <div class="bar-chart">
-        <div
-          class="bar-item"
-          *ngFor="let item of monthlyRevenue"
-          [style.height.%]="getRevenueHeight(item.revenue)"
-        >
-          <div class="bar-fill"></div>
-        </div>
-      </div>
-      <div class="chart-labels">
-        <span *ngFor="let item of monthlyRevenue">{{ item.month }}</span>
-      </div>
-    </div>
+    <!-- ══════════════ SECTION : VUE GÉNÉRALE ══════════════ -->
+    <div *ngIf="activeSection === 'overview'">
 
-    <!-- Répartition -->
-    <div class="chart-card chart-repartition">
-      <h3 class="chart-title">Répartition</h3>
-      <div class="donut-container">
-        <svg class="donut-chart" viewBox="0 0 100 100">
-          <!-- Femme 60% -->
-          <circle cx="50" cy="50" r="40" fill="none"
-            stroke="#d4a574" stroke-width="20"
-            stroke-dasharray="150.8 251.2"
-            transform="rotate(-90 50 50)"></circle>
-          <!-- Homme 30% -->
-          <circle cx="50" cy="50" r="40" fill="none"
-            stroke="#c4b5a0" stroke-width="20"
-            stroke-dasharray="75.4 251.2"
-            stroke-dashoffset="-150.8"
-            transform="rotate(-90 50 50)"></circle>
-          <!-- Autres 10% -->
-          <circle cx="50" cy="50" r="40" fill="none"
-            stroke="#e8e8e8" stroke-width="20"
-            stroke-dasharray="25.12 251.2"
-            stroke-dashoffset="-226.2"
-            transform="rotate(-90 50 50)"></circle>
-        </svg>
-      </div>
-      <div class="donut-legend">
-        <div class="legend-item">
-          <span class="legend-dot" style="background: #d4a574;"></span>
-          <span>Femme {{ clientDistribution.femme }}%</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-dot" style="background: #c4b5a0;"></span>
-          <span>Homme {{ clientDistribution.homme }}%</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-dot" style="background: #e8e8e8;"></span>
-          <span>Autres {{ clientDistribution.autres }}%</span>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Orders Table -->
-  <div class="orders-section">
-    <h3 class="section-title">Commandes récentes</h3>
-
-    <div class="orders-table">
-      <div class="table-header">
-        <div class="th">COMMANDE</div>
-        <div class="th">CLIENT</div>
-        <div class="th">DATE</div>
-        <div class="th">MONTANT</div>
-        <div class="th">STATUT</div>
-        <div class="th">ACTIONS</div>
-      </div>
-
-      <div class="table-body" *ngIf="!loading">
-        <div class="table-row" *ngFor="let order of recentOrders">
-          <div class="td">{{ order.orderNumber }}</div>
-          <div class="td">{{ order.customerName }}</div>
-          <div class="td">{{ order.date }}</div>
-          <div class="td">{{ order.amount }} €</div>
-          <div class="td">
-            <span class="status-badge" [ngClass]="getStatusClass(order.status)">
-              {{ order.status }}
-            </span>
+      <!-- KPI Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-revenue">
+          <div class="kpi-icon">💶</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Chiffre d'affaires</div>
+            <div class="kpi-value">{{ stats.totalRevenue | number:'1.0-0':'fr' }} DT</div>
+            <div class="kpi-change" [class]="getChangeClass(stats.revenueChange)">
+              {{ stats.revenueChange >= 0 ? '↑' : '↓' }} {{ stats.revenueChange | number:'1.1-1':'fr' }}% ce mois
+            </div>
           </div>
-          <div class="td">
-            <button class="btn-view" [routerLink]="['/admin/orders', order._id]">
-              VOIR
-            </button>
+        </div>
+        <div class="kpi-card kpi-orders">
+          <div class="kpi-icon">🛍️</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Commandes</div>
+            <div class="kpi-value">{{ stats.totalOrders }}</div>
+            <div class="kpi-change" [class]="getChangeClass(stats.ordersChange)">
+              {{ stats.ordersChange >= 0 ? '↑' : '↓' }} {{ stats.ordersChange | number:'1.1-1':'fr' }}% ce mois
+            </div>
+          </div>
+        </div>
+        <div class="kpi-card kpi-clients">
+          <div class="kpi-icon">👤</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Clients actifs</div>
+            <div class="kpi-value">{{ stats.activeClients | number:'1.0-0':'fr' }}</div>
+            <div class="kpi-change" [class]="getChangeClass(stats.clientsChange)">
+              {{ stats.clientsChange >= 0 ? '↑' : '↓' }} {{ stats.clientsChange | number:'1.1-1':'fr' }}% ce mois
+            </div>
+          </div>
+        </div>
+        <div class="kpi-card kpi-basket">
+          <div class="kpi-icon">🛒</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Panier moyen</div>
+            <div class="kpi-value">{{ stats.averageBasket | number:'1.1-1':'fr' }} DT</div>
+            <div class="kpi-change" [class]="getChangeClass(stats.basketChange)">
+              {{ stats.basketChange >= 0 ? '↑' : '↓' }} {{ stats.basketChange | number:'1.1-1':'fr' }}% ce mois
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="table-loading" *ngIf="loading">
-        <div class="spinner"></div>
-        <p>Chargement...</p>
+      <!-- ✅ CARTE LIVRAISONS — accès rapide depuis le dashboard -->
+      <div class="delivery-card" routerLink="/admin/delivery">
+        <div class="delivery-card__header">
+          <div class="delivery-card__title">
+            <span class="delivery-icon">🚚</span>
+            <div>
+              <h3>Gestion des Livraisons</h3>
+              <p>Cliquez pour gérer les expéditions</p>
+            </div>
+          </div>
+          <button class="btn-delivery-go" routerLink="/admin/delivery">
+            Accéder →
+          </button>
+        </div>
+
+        <div class="delivery-stats-row">
+          <div class="delivery-stat delivery-stat--warning">
+            <span class="ds-value">{{ deliveryStats.pending }}</span>
+            <span class="ds-label">⏳ En attente</span>
+          </div>
+          <div class="delivery-stat delivery-stat--info">
+            <span class="ds-value">{{ deliveryStats.processing }}</span>
+            <span class="ds-label">⚙️ En cours</span>
+          </div>
+          <div class="delivery-stat delivery-stat--primary">
+            <span class="ds-value">{{ deliveryStats.shipped }}</span>
+            <span class="ds-label">🚚 Expédiées</span>
+          </div>
+          <div class="delivery-stat delivery-stat--success">
+            <span class="ds-value">{{ deliveryStats.delivered }}</span>
+            <span class="ds-label">✅ Livrées</span>
+          </div>
+          <div class="delivery-stat delivery-stat--danger">
+            <span class="ds-value">{{ deliveryStats.cancelled }}</span>
+            <span class="ds-label">❌ Annulées</span>
+          </div>
+          <div class="delivery-stat delivery-stat--total">
+            <span class="ds-value">{{ deliveryStats.total }}</span>
+            <span class="ds-label">📦 Total</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Graphiques row 1 -->
+      <div class="charts-row">
+        <!-- Bar chart revenu mensuel -->
+        <div class="chart-card chart-wide">
+          <div class="chart-header">
+            <h3 class="chart-title">Ventes — 12 derniers mois</h3>
+            <span class="chart-unit">DT</span>
+          </div>
+          <div class="bar-chart-v">
+            <div class="bar-v-wrap" *ngFor="let item of monthlyRevenue">
+              <div class="bar-v-track">
+                <div class="bar-v-fill" [style.height.%]="getRevenueHeight(item.revenue)"
+                     [title]="item.revenue + ' DT'">
+                  <span class="bar-v-val" *ngIf="item.revenue > 0">{{ item.revenue | number:'1.0-0':'fr' }}</span>
+                </div>
+              </div>
+              <div class="bar-v-label">{{ item.month }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Donut genre -->
+        <div class="chart-card chart-narrow chart-donut-wrap">
+          <h3 class="chart-title">Répartition clients</h3>
+          <div class="donut-svg-wrap">
+            <svg viewBox="0 0 100 100" class="donut-svg">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#d4a574" stroke-width="18"
+                [attr.stroke-dasharray]="getDonutDasharray(clientDistribution.femme)"
+                [attr.stroke-dashoffset]="getDonutOffset(0)"
+                transform="rotate(-90 50 50)"/>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#7ba7bc" stroke-width="18"
+                [attr.stroke-dasharray]="getDonutDasharray(clientDistribution.homme)"
+                [attr.stroke-dashoffset]="getDonutOffset(clientDistribution.femme)"
+                transform="rotate(-90 50 50)"/>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#b8c0b8" stroke-width="18"
+                [attr.stroke-dasharray]="getDonutDasharray(clientDistribution.autres)"
+                [attr.stroke-dashoffset]="getDonutOffset(clientDistribution.femme + clientDistribution.homme)"
+                transform="rotate(-90 50 50)"/>
+              <text x="50" y="47" text-anchor="middle" class="donut-center-label">Clients</text>
+              <text x="50" y="58" text-anchor="middle" class="donut-center-total">{{ stats.activeClients }}</text>
+            </svg>
+          </div>
+          <div class="donut-legend">
+            <div class="donut-leg-item">
+              <span class="dot" style="background:#d4a574"></span>
+              <span>Femme</span><strong>{{ clientDistribution.femme }}%</strong>
+            </div>
+            <div class="donut-leg-item">
+              <span class="dot" style="background:#7ba7bc"></span>
+              <span>Homme</span><strong>{{ clientDistribution.homme }}%</strong>
+            </div>
+            <div class="donut-leg-item">
+              <span class="dot" style="background:#b8c0b8"></span>
+              <span>Autres</span><strong>{{ clientDistribution.autres }}%</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Graphiques row 2 -->
+      <div class="charts-row">
+        <div class="chart-card chart-half">
+          <h3 class="chart-title">Revenu par catégorie</h3>
+          <div *ngIf="categoryRevenue.length === 0" class="chart-empty">Aucune donnée disponible</div>
+          <div class="bar-h-list" *ngIf="categoryRevenue.length > 0">
+            <div class="bar-h-row" *ngFor="let item of categoryRevenue">
+              <div class="bar-h-label">{{ item.category }}</div>
+              <div class="bar-h-track">
+                <div class="bar-h-fill" [style.width.%]="getCategoryWidth(item.revenue)">
+                  <span class="bar-h-val">{{ item.revenue | number:'1.0-0':'fr' }} DT</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card chart-half">
+          <h3 class="chart-title">Top 10 produits vendus</h3>
+          <div *ngIf="topProducts.length === 0" class="chart-empty">Aucune donnée disponible</div>
+          <div class="bar-h-list" *ngIf="topProducts.length > 0">
+            <div class="bar-h-row" *ngFor="let p of topProducts; let i = index">
+              <div class="bar-h-label">
+                <span class="rank">#{{ i + 1 }}</span> {{ p.name | slice:0:22 }}
+              </div>
+              <div class="bar-h-track">
+                <div class="bar-h-fill bar-h-product" [style.width.%]="getProductWidth(p.salesCount)">
+                  <span class="bar-h-val">{{ p.salesCount }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ✅ Commandes récentes avec info livraison -->
+      <div class="chart-card mt-0">
+        <div class="chart-header">
+          <h3 class="chart-title">Commandes récentes</h3>
+          <a routerLink="/admin/delivery" class="btn-see-all">Gérer les livraisons →</a>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>N° Commande</th>
+              <th>Client</th>
+              <th>Date</th>
+              <th>Montant</th>
+              <th>Statut</th>
+              <th>Livraison</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let o of recentOrders">
+              <td class="mono">{{ o.orderNumber }}</td>
+              <td>{{ o.customerName }}</td>
+              <td class="muted">{{ o.date }}</td>
+              <td><strong>{{ o.amount | number:'1.2-2':'fr' }} DT</strong></td>
+              <td>
+                <span class="status-pill" [class]="getStatusClass(o.status)">{{ o.status }}</span>
+              </td>
+              <td class="delivery-cell">
+                <span *ngIf="o.hasDelivery" class="carrier-pill">
+                  🚛 {{ o.carrier }}
+                  <span *ngIf="o.trackingNumber" class="tracking">{{ o.trackingNumber }}</span>
+                </span>
+                <span *ngIf="!o.hasDelivery" class="no-delivery">
+                  — <a [routerLink]="['/admin/delivery']" class="assign-link">Assigner</a>
+                </span>
+              </td>
+              <td>
+                <a [routerLink]="['/admin/delivery']" class="btn-sm">🚚 Livraison</a>
+              </td>
+            </tr>
+            <tr *ngIf="recentOrders.length === 0">
+              <td colspan="7" class="empty-row">Aucune commande récente</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /overview -->
+
+    <!-- ══════════════ SECTION : INVENTAIRE ══════════════ -->
+    <div *ngIf="activeSection === 'inventory'">
+      <div class="kpi-grid kpi-grid--3">
+        <div class="kpi-card kpi-warning">
+          <div class="kpi-icon">⚠️</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Stock bas (≤ {{ lowStockThreshold }} unités)</div>
+            <div class="kpi-value">{{ lowStockItems.length }}</div>
+            <div class="kpi-change neutral">produits concernés</div>
+          </div>
+        </div>
+        <div class="kpi-card kpi-danger">
+          <div class="kpi-icon">🚫</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Ruptures de stock</div>
+            <div class="kpi-value">{{ outOfStockCount }}</div>
+            <div class="kpi-change neutral">produits à 0</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">📦</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Seuil d'alerte</div>
+            <div class="kpi-value">{{ lowStockThreshold }}</div>
+            <div class="kpi-change neutral">unités</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card chart-half">
+          <h3 class="chart-title">Valeur du stock par catégorie</h3>
+          <div *ngIf="categoryStock.length === 0" class="chart-empty">Aucune donnée disponible</div>
+          <div class="bar-h-list" *ngIf="categoryStock.length > 0">
+            <div class="bar-h-row" *ngFor="let c of categoryStock">
+              <div class="bar-h-label">{{ c.category }}</div>
+              <div class="bar-h-track">
+                <div class="bar-h-fill bar-h-stock" [style.width.%]="getCategoryStockWidth(c.value)">
+                  <span class="bar-h-val">{{ c.value | number:'1.0-0':'fr' }} DT</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card chart-half">
+          <div class="chart-header">
+            <h3 class="chart-title">Alertes stock bas</h3>
+            <div class="threshold-control">
+              Seuil :
+              <input type="number" [(ngModel)]="lowStockThreshold" min="1" max="100"
+                     (change)="loadLowStock()" class="threshold-input">
+              unités
+            </div>
+          </div>
+          <div *ngIf="lowStockItems.length === 0" class="chart-empty">
+            ✅ Aucun produit sous le seuil de {{ lowStockThreshold }} unités
+          </div>
+          <table class="data-table" *ngIf="lowStockItems.length > 0">
+            <thead>
+              <tr><th>Produit</th><th>Catégorie</th><th>Stock</th><th>Prix</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of lowStockItems">
+                <td>{{ item.name }}</td>
+                <td class="muted">{{ item.category }}</td>
+                <td>
+                  <span class="stock-badge" [class]="getStockClass(item.stock)">
+                    {{ item.stock === 0 ? 'RUPTURE' : item.stock + ' unités' }}
+                  </span>
+                </td>
+                <td>{{ item.price | number:'1.2-2':'fr' }} DT</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
 
+    <!-- ══════════════ SECTION : CLIENTS ══════════════ -->
+    <div *ngIf="activeSection === 'clients'">
+      <div class="charts-row">
+        <div class="chart-card chart-half">
+          <h3 class="chart-title">Tendance panier moyen</h3>
+          <p class="chart-desc">Moyenne par semaine (30 derniers jours)</p>
+          <div *ngIf="basketTrend.length === 0" class="chart-empty">Aucune donnée disponible</div>
+          <div class="bar-chart-v bar-chart-v--sm" *ngIf="basketTrend.length > 0">
+            <div class="bar-v-wrap" *ngFor="let b of basketTrend">
+              <div class="bar-v-track">
+                <div class="bar-v-fill bar-v-basket" [style.height.%]="getBasketHeight(b.average)">
+                  <span class="bar-v-val">{{ b.average | number:'1.0-0':'fr' }}</span>
+                </div>
+              </div>
+              <div class="bar-v-label">{{ b.period }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card chart-half">
+          <h3 class="chart-title">Top clients par dépense</h3>
+          <div *ngIf="topClients.length === 0" class="chart-empty">Aucune donnée disponible</div>
+          <table class="data-table" *ngIf="topClients.length > 0">
+            <thead>
+              <tr><th>#</th><th>Client</th><th>Commandes</th><th>Total dépensé</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of topClients; let i = index">
+                <td class="rank-cell">{{ i + 1 }}</td>
+                <td>
+                  <div class="client-name">{{ c.name || 'Anonyme' }}</div>
+                  <div class="client-email muted">{{ c.email }}</div>
+                </td>
+                <td class="center">{{ c.orderCount }}</td>
+                <td><strong>{{ c.totalSpent | number:'1.2-2':'fr' }} DT</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card chart-wide">
+          <h3 class="chart-title">Répartition genre — détail</h3>
+          <div class="gender-bars">
+            <div class="gender-bar-row" *ngFor="let g of [
+              {label:'Femme', color:'#d4a574', pct: clientDistribution.femme},
+              {label:'Homme', color:'#7ba7bc', pct: clientDistribution.homme},
+              {label:'Autres', color:'#b8c0b8', pct: clientDistribution.autres}
+            ]">
+              <div class="gender-bar-label">
+                <span class="dot" [style.background]="g.color"></span> {{ g.label }}
+              </div>
+              <div class="gender-bar-track">
+                <div class="gender-bar-fill" [style.background]="g.color" [style.width.%]="g.pct"></div>
+              </div>
+              <div class="gender-bar-pct">{{ g.pct }}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ SECTION : ENTONNOIR ══════════════ -->
+    <div *ngIf="activeSection === 'funnel'">
+      <div class="chart-card">
+        <h3 class="chart-title">Entonnoir de conversion</h3>
+        <p class="chart-desc">Vue produit → Ajout panier → Début checkout → Commande finalisée</p>
+
+        <div class="funnel-wrap">
+          <div class="funnel-step">
+            <div class="funnel-bar-wrap">
+              <div class="funnel-bar" style="background:#d4a574" [style.width.%]="getFunnelWidth(funnel.views)">
+                <span class="funnel-bar-label">Vues produit</span>
+                <span class="funnel-bar-count">{{ funnel.views | number:'1.0-0':'fr' }}</span>
+              </div>
+            </div>
+            <div class="funnel-pct">100%</div>
+          </div>
+
+          <div class="funnel-arrow">↓ <span class="drop">{{ 100 - getFunnelPct(funnel.cart) }}% abandonnent</span></div>
+
+          <div class="funnel-step">
+            <div class="funnel-bar-wrap">
+              <div class="funnel-bar" style="background:#c49060" [style.width.%]="getFunnelWidth(funnel.cart)">
+                <span class="funnel-bar-label">Ajout au panier</span>
+                <span class="funnel-bar-count">{{ funnel.cart | number:'1.0-0':'fr' }}</span>
+              </div>
+            </div>
+            <div class="funnel-pct">{{ getFunnelPct(funnel.cart) }}%</div>
+          </div>
+
+          <div class="funnel-arrow">↓ <span class="drop">{{ getFunnelPct(funnel.cart) - getFunnelPct(funnel.checkout) }}% abandonnent</span></div>
+
+          <div class="funnel-step">
+            <div class="funnel-bar-wrap">
+              <div class="funnel-bar" style="background:#a06c40" [style.width.%]="getFunnelWidth(funnel.checkout)">
+                <span class="funnel-bar-label">Début checkout</span>
+                <span class="funnel-bar-count">{{ funnel.checkout | number:'1.0-0':'fr' }}</span>
+              </div>
+            </div>
+            <div class="funnel-pct">{{ getFunnelPct(funnel.checkout) }}%</div>
+          </div>
+
+          <div class="funnel-arrow">↓ <span class="drop">{{ getFunnelPct(funnel.checkout) - getFunnelPct(funnel.orders) }}% abandonnent</span></div>
+
+          <div class="funnel-step">
+            <div class="funnel-bar-wrap">
+              <div class="funnel-bar" style="background:#7a4c20" [style.width.%]="getFunnelWidth(funnel.orders)">
+                <span class="funnel-bar-label">Commande finalisée</span>
+                <span class="funnel-bar-count">{{ funnel.orders | number:'1.0-0':'fr' }}</span>
+              </div>
+            </div>
+            <div class="funnel-pct conversion">{{ getFunnelPct(funnel.orders) }}%</div>
+          </div>
+        </div>
+
+        <div class="funnel-summary">
+          <div class="funnel-kpi">
+            <div class="funnel-kpi-label">Taux de conversion global</div>
+            <div class="funnel-kpi-value">{{ getFunnelPct(funnel.orders) }}%</div>
+          </div>
+          <div class="funnel-kpi">
+            <div class="funnel-kpi-label">Vues totales</div>
+            <div class="funnel-kpi-value">{{ funnel.views | number:'1.0-0':'fr' }}</div>
+          </div>
+          <div class="funnel-kpi">
+            <div class="funnel-kpi-label">Commandes finalisées</div>
+            <div class="funnel-kpi-value">{{ funnel.orders | number:'1.0-0':'fr' }}</div>
+          </div>
+          <div class="funnel-kpi">
+            <div class="funnel-kpi-label">Abandon checkout</div>
+            <div class="funnel-kpi-value danger">
+              {{ getFunnelPct(funnel.checkout) - getFunnelPct(funnel.orders) }}%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /!loading -->
+  <app-prediction-widget></app-prediction-widget>
 </div>

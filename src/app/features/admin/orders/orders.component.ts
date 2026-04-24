@@ -46,13 +46,26 @@ export class OrdersComponent implements OnInit {
 
   loadOrders(): void {
     this.loading = true;
-    this.http.get<any>(`${API}/orders`).subscribe({
+
+    // ✅ MODIFICATION : Utiliser la route admin qui récupère TOUTES les commandes
+    this.http.get<any>(`${API}/orders/admin/all`).subscribe({
       next: (res) => {
+        console.log('✅ Commandes reçues:', res.count, 'commandes');
+        console.log('Source:', res.source || 'database');
+
         this.orders = res.orders || res || [];
         this.applyFilters();
         this.loading = false;
       },
-      error: () => {
+      error: (err) => {
+        console.error('❌ Erreur chargement commandes:', err);
+
+        // Si erreur 403 (pas admin), rediriger
+        if (err.status === 403) {
+          console.warn('⚠️ Accès refusé - Utilisateur non admin');
+          this.router.navigate(['/']);
+        }
+
         this.orders = [];
         this.filtered = [];
         this.loading = false;
@@ -78,6 +91,7 @@ export class OrdersComponent implements OnInit {
     }
 
     this.filtered = list;
+    console.log(`📊 Filtres appliqués: ${this.filtered.length}/${this.orders.length} commandes affichées`);
   }
 
   getStatusLabel(status: string): string {
@@ -104,11 +118,19 @@ export class OrdersComponent implements OnInit {
   }
 
   changeStatus(order: Order, status: OrderStatus): void {
+    console.log(`🔄 Changement statut commande ${order._id || order.id}: ${order.status} → ${status}`);
+
     this.http
       .put(`${API}/orders/${order._id || order.id}/status`, { status })
       .subscribe({
-        next: () => this.loadOrders(),
-        error: (e) => console.error('Update failed:', e),
+        next: (res: any) => {
+          console.log('✅ Statut mis à jour:', res.message);
+          this.loadOrders(); // Recharge la liste
+        },
+        error: (e) => {
+          console.error('❌ Échec mise à jour statut:', e);
+          alert('Erreur lors de la mise à jour du statut');
+        },
       });
   }
 

@@ -1,3 +1,4 @@
+// backend/services/cache.service.js
 import { getRedisClientSafe } from '../config/redis.js';
 import { CACHE_CONFIG, generateCacheKey, calculateDynamicTTL } from '../config/cache.config.js';
 import evictionEmitter from './eviction.emitter.js';
@@ -22,6 +23,7 @@ class CacheService {
       l1ResponseTimeSum:   0, l1ResponseTimeCount: 0,
       l2ResponseTimeSum:   0, l2ResponseTimeCount: 0,
       l3ResponseTimeSum:   0, l3ResponseTimeCount: 0,
+      evictions: 0,
     };
 
     this.metricsHistory     = [];
@@ -42,9 +44,7 @@ class CacheService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // GET par clé brute (recherche / suggestions)
-  //
-  // FIX : defaultTTL accepté en paramètre (était hardcodé à 300s).
+  // GET par clé brute
   // ══════════════════════════════════════════════════════════════════════════
   async getByKey(key, defaultTTL = 300) {
     return this._getFromLevels(key, defaultTTL);
@@ -55,7 +55,7 @@ class CacheService {
   // ══════════════════════════════════════════════════════════════════════════
   async _getFromLevels(key, defaultTTL) {
     try {
-      // ── L1 : mémoire ───────────────────────────────────────────────────
+      // L1 : mémoire
       const t1    = Date.now();
       const l1hit = this.getFromMemory(key);
 
@@ -72,9 +72,8 @@ class CacheService {
 
       this.metrics.l1Misses++;
 
-      // ── L2 : Redis ─────────────────────────────────────────────────────
+      // L2 : Redis
       const redis = getRedisClientSafe();
-
       if (redis) {
         const t2 = Date.now();
         let raw;
@@ -108,14 +107,11 @@ class CacheService {
           this.metrics.l2ResponseTimeSum   += ms;
           this.metrics.l2ResponseTimeCount++;
 
-          // FIX : utiliser le TTL Redis réel pour la remontée en L1.
           let remainingTTL = defaultTTL;
           try {
             const redisTTL = await redis.ttl(key);
             if (redisTTL > 0) remainingTTL = redisTTL;
-          } catch {
-            // defaultTTL correct — transmis depuis le middleware
-          }
+          } catch {}
 
           this.memoryCache.set(key, {
             data:      parsed,
@@ -125,27 +121,19 @@ class CacheService {
           this.incrementAccessCount(key);
 
           if (CACHE_CONFIG.monitoring?.enabled)
-            console.log(`🎯 L2 HIT: ${key} (${ms}ms) → remonté L1 TTL=${remainingTTL}s`);
+            console.log(`🎯 L2 HIT: ${key} (${ms}ms) → remonté L1`);
 
           return parsed;
         }
 
-        // L2 miss confirmé
         this.metrics.l2Misses++;
-        if (CACHE_CONFIG.monitoring?.logMisses)
-          console.log(`💨 L2 MISS: ${key}`);
-
       } else {
         console.warn(`⚠️  Redis indisponible — GET [${key}]`);
         this.metrics.l2Misses++;
       }
 
-      // ── L3 : miss total ────────────────────────────────────────────────
       this.metrics.misses++;
       this.metrics.l3Requests++;
-      if (CACHE_CONFIG.monitoring?.logMisses)
-        console.log(`❌ MISS total: ${key} → MongoDB`);
-
       return null;
 
     } catch (err) {
@@ -165,15 +153,12 @@ class CacheService {
     return this._setToLevels(key, data, ttl, l3Ms);
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // SET par clé brute avec TTL personnalisé
-  // ══════════════════════════════════════════════════════════════════════════
   async setWithTTL(key, data, ttl, l3Ms = 0) {
     return this._setToLevels(key, data, ttl, l3Ms);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // ÉCRITURE L1 + L2 centralisée
+  // ÉCRITURE L1 + L2
   // ══════════════════════════════════════════════════════════════════════════
   async _setToLevels(key, data, ttl, l3Ms = 0) {
     try {
@@ -182,7 +167,7 @@ class CacheService {
         this.metrics.l3ResponseTimeCount++;
       }
 
-      // ── L1 ─────────────────────────────────────────────────────────────
+      // L1
       if (this.memoryCache.size >= (CACHE_CONFIG.limits?.maxMemoryKeys || 500))
         this.evictLRU();
 
@@ -192,19 +177,14 @@ class CacheService {
         createdAt: Date.now()
       });
 
-      // ── L2 ─────────────────────────────────────────────────────────────
+      // L2 Redis
       const redis = getRedisClientSafe();
-
       if (redis) {
         try {
           await redis.setEx(key, ttl, JSON.stringify(data));
-          if (CACHE_CONFIG.monitoring?.enabled)
-            console.log(`💾 L2 SET: ${key} | TTL: ${ttl}s`);
         } catch (err) {
           console.error(`❌ L2 SET error [${key}]:`, err.message);
         }
-      } else {
-        console.warn(`⚠️  Redis indisponible — SET L1 seulement [${key}]`);
       }
 
       this.metrics.sets++;
@@ -217,43 +197,53 @@ class CacheService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // INVALIDATION PAR ÉVÉNEMENT MÉTIER
-  // ✅ Émet une notification d'éviction batch avec le contexte de l'événement
+  // MÉTHODES D'INVALIDATION (CORRIGÉES)
   // ══════════════════════════════════════════════════════════════════════════
-  async invalidate(eventType) {
-    const tags = CACHE_CONFIG.invalidation[eventType] || [];
-    if (!tags.length) return;
 
-    console.log(`🔄 Invalidation: ${eventType} → [${tags.join(', ')}]`);
+  async delete(key) {
+    if (!key) return;
+    return this.invalidateKey(key, 'direct_delete');
+  }
 
-    const allDeletedKeys = [];
+  async invalidatePattern(pattern) {
+    // L1
+    for (const [key] of this.memoryCache) {
+      if (key.match(new RegExp(pattern.replace(/\*/g, '.*')))) {
+        this.memoryCache.delete(key);
+        this.memoryCacheStats.delete(key);
+      }
+    }
 
-    for (const tag of tags) {
-      const deleted = await this.invalidateByTag(tag);
-      allDeletedKeys.push(...deleted);
+    // L2 Redis
+    const redis = getRedisClientSafe();
+    if (redis) {
+      try {
+        const keys = await redis.keys(pattern);
+        if (keys.length > 0) await redis.del(keys);
+      } catch (err) {
+        console.error(`Erreur invalidatePattern ${pattern}:`, err.message);
+      }
+    }
+    this.metrics.invalidations++;
+  }
+
+  async invalidateKey(key, context = 'manual_delete') {
+    this.memoryCache.delete(key);
+    this.memoryCacheStats.delete(key);
+
+    const redis = getRedisClientSafe();
+    if (redis) {
+      try {
+        await redis.del(key);
+      } catch (err) {
+        console.error(`Erreur invalidateKey [${key}]:`, err.message);
+      }
     }
 
     this.metrics.invalidations++;
-
-    // ✅ Notification éviction : batch si des clés supprimées, sinon signal vide
-    if (allDeletedKeys.length > 0) {
-      evictionEmitter.emitBatch(allDeletedKeys, 'pattern_delete', {
-        context: eventType,
-        pattern: tags.join(', '),
-      });
-    } else {
-      evictionEmitter._emitBatch({
-        pattern: tags.join(', '),
-        count:   0,
-        reason:  'pattern_delete',
-        context: eventType,
-      });
-    }
+    evictionEmitter.emit(key, 'manual_delete', 'L1+L2', { context });
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // INVALIDATION PAR TAG — retourne les clés supprimées
-  // ══════════════════════════════════════════════════════════════════════════
   async invalidateByTag(tag) {
     const deletedKeys = [];
 
@@ -273,46 +263,19 @@ class CacheService {
         const keys = await redis.keys(`*${tag}*`);
         if (keys.length > 0) {
           await redis.del(keys);
-          for (const k of keys) {
-            if (!deletedKeys.includes(k)) deletedKeys.push(k);
-          }
+          deletedKeys.push(...keys);
         }
       } catch (err) {
         console.error(`Erreur invalidation tag ${tag}:`, err.message);
       }
     }
 
+    this.metrics.invalidations++;
     return deletedKeys;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // INVALIDATION D'UNE CLÉ UNIQUE
-  // ✅ Émet une notification d'éviction unitaire
-  // ══════════════════════════════════════════════════════════════════════════
-  async invalidateKey(key, context = 'manual_delete') {
-    // L1
-    this.memoryCache.delete(key);
-    this.memoryCacheStats.delete(key);
-
-    // L2
-    const redis = getRedisClientSafe();
-    if (redis) {
-      try {
-        await redis.del(key);
-      } catch (err) {
-        console.error(`Erreur invalidateKey [${key}]:`, err.message);
-      }
-    }
-
-    this.metrics.invalidations++;
-
-    // ✅ Notification éviction unitaire
-    evictionEmitter.emit(key, 'manual_delete', 'L1+L2', { context });
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
   // FLUSH TOTAL
-  // ✅ Émet une notification cache:cleared
   // ══════════════════════════════════════════════════════════════════════════
   async flush(context = 'full_flush') {
     const count = this.memoryCache.size;
@@ -329,8 +292,6 @@ class CacheService {
     }
 
     this.metrics.invalidations++;
-
-    // ✅ Notification flush total
     evictionEmitter._emitCleared({ count, reason: 'full_flush', context });
 
     return count;
@@ -372,10 +333,13 @@ class CacheService {
     const sorted = [...this.memoryCacheStats.entries()]
       .sort((a, b) => a[1].count - b[1].count)
       .slice(0, n);
+
     for (const [k] of sorted) {
       this.memoryCache.delete(k);
       this.memoryCacheStats.delete(k);
+      this.metrics.evictions++;
     }
+
     console.log(`🧹 LRU eviction: ${n} entrées`);
   }
 
@@ -393,9 +357,6 @@ class CacheService {
     }, 5 * 60 * 1000);
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STATISTIQUES
-  // ══════════════════════════════════════════════════════════════════════════
   incrementAccessCount(key) {
     const s      = this.memoryCacheStats.get(key) || { count: 0, lastAccess: 0 };
     s.count++;
@@ -414,9 +375,6 @@ class CacheService {
       .map(([key, s]) => ({ key, ...s }));
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // MÉTRIQUES
-  // ══════════════════════════════════════════════════════════════════════════
   getMetrics() {
     const m         = this.metrics;
     const l1Hits    = m.hits.L1;
@@ -424,41 +382,38 @@ class CacheService {
     const totalHits = l1Hits + l2Hits;
     const totalReq  = totalHits + m.misses;
 
+    const evictionRate = m.sets > 0
+      ? parseFloat(((m.evictions / m.sets) * 100).toFixed(2))
+      : 0;
+
     return {
       totalHits,
       totalMisses:   m.misses,
       totalRequests: totalReq,
-      hitRate: totalReq > 0
-        ? parseFloat(((totalHits / totalReq) * 100).toFixed(2)) : 0,
+      hitRate: totalReq > 0 ? parseFloat(((totalHits / totalReq) * 100).toFixed(2)) : 0,
 
       l1Hits,
       l1Misses:          m.l1Misses,
-      l1HitRate: (l1Hits + m.l1Misses) > 0
-        ? parseFloat(((l1Hits / (l1Hits + m.l1Misses)) * 100).toFixed(2)) : 0,
-      l1AvgResponseTime: m.l1ResponseTimeCount > 0
-        ? parseFloat((m.l1ResponseTimeSum / m.l1ResponseTimeCount).toFixed(2)) : 0,
+      l1HitRate: (l1Hits + m.l1Misses) > 0 ? parseFloat(((l1Hits / (l1Hits + m.l1Misses)) * 100).toFixed(2)) : 0,
+      l1AvgResponseTime: m.l1ResponseTimeCount > 0 ? parseFloat((m.l1ResponseTimeSum / m.l1ResponseTimeCount).toFixed(2)) : 0,
 
       l2Hits,
       l2Misses:          m.l2Misses,
-      l2HitRate: (l2Hits + m.l2Misses) > 0
-        ? parseFloat(((l2Hits / (l2Hits + m.l2Misses)) * 100).toFixed(2)) : 0,
-      l2AvgResponseTime: m.l2ResponseTimeCount > 0
-        ? parseFloat((m.l2ResponseTimeSum / m.l2ResponseTimeCount).toFixed(2)) : 0,
+      l2HitRate: (l2Hits + m.l2Misses) > 0 ? parseFloat(((l2Hits / (l2Hits + m.l2Misses)) * 100).toFixed(2)) : 0,
+      l2AvgResponseTime: m.l2ResponseTimeCount > 0 ? parseFloat((m.l2ResponseTimeSum / m.l2ResponseTimeCount).toFixed(2)) : 0,
 
       l3Requests:        m.l3Requests,
-      l3AvgResponseTime: m.l3ResponseTimeCount > 0
-        ? parseFloat((m.l3ResponseTimeSum / m.l3ResponseTimeCount).toFixed(2)) : 0,
+      l3AvgResponseTime: m.l3ResponseTimeCount > 0 ? parseFloat((m.l3ResponseTimeSum / m.l3ResponseTimeCount).toFixed(2)) : 0,
 
       sets:            m.sets,
       invalidations:   m.invalidations,
       memoryCacheSize: this.memoryCache.size,
       popularKeys:     this.getPopularKeys(10),
+      evictions:       m.evictions,
+      evictionRate,
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // HISTORIQUE SNAPSHOTS
-  // ══════════════════════════════════════════════════════════════════════════
   getHistory() { return [...this.metricsHistory]; }
 
   takeSnapshot() {
@@ -472,6 +427,8 @@ class CacheService {
       l1Hits:        m.l1Hits,
       l2Hits:        m.l2Hits,
       l3Requests:    m.l3Requests,
+      evictions:     m.evictions,
+      evictionRate:  m.evictionRate,
     });
     if (this.metricsHistory.length > this.HISTORY_MAX_POINTS)
       this.metricsHistory.shift();
@@ -492,12 +449,9 @@ class CacheService {
       l1ResponseTimeSum: 0, l1ResponseTimeCount: 0,
       l2ResponseTimeSum: 0, l2ResponseTimeCount: 0,
       l3ResponseTimeSum: 0, l3ResponseTimeCount: 0,
+      evictions: 0,
     };
     this.metricsHistory = [];
-
-    // ✅ Notification reset métriques
-    evictionEmitter.emit('__metrics_reset__', 'reset', 'internal');
-
     console.log('🔄 Métriques reset');
   }
 }
