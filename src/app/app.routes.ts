@@ -55,6 +55,11 @@ export const routes: Routes = [
     redirectTo: 'auth/verify-email',
     pathMatch: 'full'
   },
+  {
+    path: 'account',
+    redirectTo: 'auth/profile',
+    pathMatch: 'full'
+  },
 
   // ════════════════════════════════════════════════════════════
   // PRODUCTS MODULE (Lazy Loaded)
