@@ -319,7 +319,7 @@ export class AccountComponent implements OnInit {
       city:       this.profileForm.city,
       postalCode: this.profileForm.postalCode
     };
-    this.http.put(`${API}/users/profile`, updatedData, { withCredentials: true }).subscribe({
+    this.http.put(`${API}/auth/profile`, updatedData, { withCredentials: true }).subscribe({
       next:  () => { this.success = 'Profil mis à jour avec succès !'; this.saving = false; },
       error: (e) => { this.error = e.error?.message || 'Erreur'; this.saving = false; }
     });
@@ -333,7 +333,7 @@ export class AccountComponent implements OnInit {
       this.error = 'Le mot de passe doit contenir au moins 8 caractères'; return;
     }
     this.saving = true;
-    this.http.put(`${API}/users/password`, {
+    this.http.put(`${API}/auth/change-password`, {
       currentPassword: this.securityForm.currentPassword,
       newPassword:     this.securityForm.newPassword
     }, { withCredentials: true }).subscribe({

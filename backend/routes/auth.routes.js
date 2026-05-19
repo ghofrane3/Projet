@@ -59,7 +59,7 @@ router.post('/register', async (req, res) => {
 
     // ✅ Invalide le cache liste des utilisateurs (admin dashboard)
     // → notification éviction "user_registered"
-    await cacheService.invalidate('user_registered');
+   await cacheService.invalidateByTag('user_registered');
 
     res.status(201).json({
       success:           true,
@@ -579,5 +579,60 @@ router.post('/reset-password', async (req, res) => {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
+// ═══════════════════════════════════════════════════════════
+// CHANGEMENT MOT DE PASSE
+// PUT /api/auth/change-password
+// ═══════════════════════════════════════════════════════════
+router.put('/change-password', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { currentPassword, newPassword } = req.body;
 
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mot de passe actuel et nouveau mot de passe requis'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le nouveau mot de passe doit faire au moins 6 caractères'
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+
+    // Vérifier le mot de passe actuel
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mot de passe actuel incorrect'
+      });
+    }
+
+    // Mettre à jour le mot de passe
+    user.password = newPassword;
+    await user.save();
+
+    // Invalider le cache utilisateur
+    await cacheService.invalidateKey(`user:${userId}`, 'user_updated');
+
+    console.log(`✅ Mot de passe changé pour ${user.email}`);
+
+    res.json({
+      success: true,
+      message: 'Mot de passe modifié avec succès'
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur change-password:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
 export default router;
